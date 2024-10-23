@@ -86,7 +86,7 @@ uint64_t AV1BinaryReader::uvlc()
     uint64_t value = 0;
     while (1)
     {
-        uint8_t done = f(1);
+        uint8_t done = (uint8_t)f(1);
         if (done)
         {
             break;
@@ -99,6 +99,21 @@ uint64_t AV1BinaryReader::uvlc()
     }
     value = f(leadingZeros);
     return value + ((uint64_t)1 << leadingZeros) - 1;
+}
+
+uint64_t AV1BinaryReader::leb128()
+{
+    size_t value = 0;
+    for (size_t i=0; i<8; i++)
+    {
+        uint64_t leb128_byte = f(8);
+        value |= ((leb128_byte & 0x7F) << (i*7));
+        if (!(leb128_byte & 0x80))
+        {
+            break;
+        }
+    }
+    return value;
 }
 
 bool AV1BinaryReader::ReadBytes(size_t byte, uint8_t* value)

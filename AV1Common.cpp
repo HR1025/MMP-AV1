@@ -145,6 +145,29 @@ AV1ScalabilityStructureSyntax::AV1ScalabilityStructureSyntax()
     temporal_group_size = 0;
 }
 
+AV1FilmGrainParamsSyntax::AV1FilmGrainParamsSyntax()
+{
+    apply_grain = 0;
+    grain_seed = 0;
+    update_grain = 0;
+    film_grain_params_ref_idx = 0;
+    num_y_points = 0;
+    chroma_scaling_from_luma = 0;
+    num_cb_points = 0;
+    num_cr_points = 0;
+    grain_scaling_minus_8 = 0;
+    ar_coeff_lag = 0;
+    ar_coeff_shift_minus_6 = 0;
+    grain_scale_shift = 0;
+    cb_mult = 0;
+    cb_luma_mult = 0;
+    cb_offset = 0;
+    cr_mult = 0;
+    cr_luma_mult = 0;
+    cr_offset = 0;
+    overlap_flag = 0;
+    clip_to_restricted_range = 0;
+}
 
 } // namespace Codec
 } // namespace Mmp

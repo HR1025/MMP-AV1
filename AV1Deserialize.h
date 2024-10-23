@@ -44,12 +44,20 @@ public:
     bool DeserializeMetadataScalabilitySyntax(AV1BinaryReader::ptr br, AV1MetadataScalabilitySyntax::ptr metadataScalability);
     bool DeserializeScalabilityStructureSyntax(AV1BinaryReader::ptr br, AV1ScalabilityStructureSyntax::ptr scalabilityStructure);
     bool DeserializeMetadataTimecodeSyntax(AV1BinaryReader::ptr br, AV1MetadataTimecodeSyntax::ptr metadataTimecode);
+    bool DeserializeUncompressedHeaderSyntax(AV1BinaryReader::ptr br, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
+    bool DeserializeTemporalPointInfoSyntax(AV1BinaryReader::ptr br, AV1TemporalPointInfoSyntax::ptr temporalPointInfo, AV1DecoderModelInfoSyntax::ptr decoderModelInfo);
+    bool DeserializeFilmGrainParamsSyntax(AV1BinaryReader::ptr br, AV1FilmGrainParamsSyntax::ptr filmGrainParams, AV1SequenceHeaderSyntax::ptr sequenceHeader, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
+public:
+    void load_grain_params(size_t idx);
 private:
     uint32_t SuperresDenom;
     uint32_t UpscaledWidth;
     uint32_t FrameWidth;
     uint64_t MiCols;
     uint64_t MiRows;
+private:
+    AV1ReferenceFrameContext _curFrameContext;
+    AV1ReferenceFrameContext _referenceFrameContext[AV1_SYMBOL(NUM_REF_FRAMES)];
 };
 
 } // namespace Codec

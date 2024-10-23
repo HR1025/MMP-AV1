@@ -679,5 +679,222 @@ bool AV1Deserialize::DeserializeMetadataTimecodeSyntax(AV1BinaryReader::ptr br, 
     } 
 }
 
+bool AV1Deserialize::DeserializeUncompressedHeaderSyntax(AV1BinaryReader::ptr br, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader)
+{
+    // See also : 5.9.2. Uncompressed header syntax
+    try
+    {
+        uint64_t idLen = 0;
+        uint64_t allFrames = ((uint64_t)1 << AV1_SYMBOL(NUM_REF_FRAMES)) - 1;
+        if (sequenceHeader->frame_id_numbers_present_flag)
+        {
+            idLen = (sequenceHeader->additional_frame_id_length_minus_1 + sequenceHeader->delta_frame_id_length_minus_2 + 3);
+        }
+        if (sequenceHeader->reduced_still_picture_header)
+        {
+            uncompressedHeader->show_existing_frame = 0;
+            uncompressedHeader->frame_type = (uint8_t)AV1FrameType::KEY_FRAME;
+            uncompressedHeader->FrameIsIntra = 1;
+            uncompressedHeader->show_frame = 1;
+            uncompressedHeader->showable_frame = 0;
+        }
+        else
+        {
+            uncompressedHeader->show_existing_frame = XXX_U8_RB(1);
+            if (uncompressedHeader->show_existing_frame == 1)
+            {
+                uncompressedHeader->frame_to_show_map_idx = XXX_U8_RB(3);
+                uint32_t equal_picture_interval = sequenceHeader->timing_info ? sequenceHeader->timing_info->equal_picture_interval : 0;
+                if (sequenceHeader->decoder_model_info_present_flag && !equal_picture_interval)
+                {
+                    uncompressedHeader->temporal_point_info = std::make_shared<AV1TemporalPointInfoSyntax>();
+                    if (!DeserializeTemporalPointInfoSyntax(br, uncompressedHeader->temporal_point_info, sequenceHeader->decoder_model_info))
+                    {
+                        AV1_LOG_ERROR << "DeserializeTemporalPointInfoSyntax fail";
+                        return false;
+                    }
+                }
+                uncompressedHeader->refresh_frame_flags = 0;
+                if (sequenceHeader->frame_id_numbers_present_flag)
+                {
+                    uncompressedHeader->display_frame_id = XXX_U64_RB((size_t)idLen);
+                }
+                uncompressedHeader->frame_type = _referenceFrameContext[uncompressedHeader->frame_to_show_map_idx].RefFrameType;
+                if (uncompressedHeader->frame_type == (uint8_t)AV1FrameType::KEY_FRAME)
+                {
+                    uncompressedHeader->refresh_frame_flags = allFrames;
+                }
+
+            }
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
+bool AV1Deserialize::DeserializeTemporalPointInfoSyntax(AV1BinaryReader::ptr br, AV1TemporalPointInfoSyntax::ptr temporalPointInfo, AV1DecoderModelInfoSyntax::ptr decoderModelInfo)
+{
+    // See also : 5.9.31. Temporal point info syntax
+    try
+    {
+        size_t n = decoderModelInfo->frame_presentation_time_length_minus_1 + 1;
+        temporalPointInfo->frame_presentation_time = XXX_U64_RB(n);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
+bool AV1Deserialize::DeserializeFilmGrainParamsSyntax(AV1BinaryReader::ptr br, AV1FilmGrainParamsSyntax::ptr filmGrainParams, AV1SequenceHeaderSyntax::ptr sequenceHeader, AV1UncompressedHeaderSyntax::ptr uncompressedHeader)
+{
+    // See also : 5.9.30. Film grain params syntax
+    try
+    {
+        if (!sequenceHeader->film_grain_params_present ||
+            (!uncompressedHeader->show_frame && !uncompressedHeader->showable_frame)
+        )
+        {
+            return true;
+        }
+        filmGrainParams->apply_grain = XXX_U8_RB(1);
+        if (!filmGrainParams->apply_grain)
+        {
+            return true;
+        }
+        filmGrainParams->grain_seed = XXX_U16_RB(16);
+        if (uncompressedHeader->frame_type == (uint8_t)AV1FrameType::INTER_FRAME)
+        {
+            filmGrainParams->update_grain = XXX_U8_RB(1);
+        }
+        else
+        {
+            filmGrainParams->update_grain = 1;
+        }
+        if (!filmGrainParams->update_grain)
+        {
+            filmGrainParams->film_grain_params_ref_idx = XXX_U8_RB(3);
+            return true;
+        }
+        filmGrainParams->num_y_points = XXX_U8_RB(4);
+        {
+            filmGrainParams->point_y_value.resize(filmGrainParams->num_y_points);
+            filmGrainParams->point_cr_scaling.resize(filmGrainParams->num_y_points);
+        }
+        for (uint8_t i=0; i<filmGrainParams->num_y_points; i++)
+        {
+            filmGrainParams->point_y_value[i] = XXX_U8_RB(8);
+            filmGrainParams->point_y_scaling[i] = XXX_U8_RB(8);
+        }
+        if (sequenceHeader->color_config->mono_chrome)
+        {
+            filmGrainParams->chroma_scaling_from_luma = 0;
+        }
+        else
+        {
+            filmGrainParams->chroma_scaling_from_luma = XXX_U8_RB(1);
+        }
+        if (sequenceHeader->color_config->mono_chrome || filmGrainParams->chroma_scaling_from_luma ||
+            (sequenceHeader->color_config->subsampling_x == 1 && sequenceHeader->color_config->subsampling_y == 1 &&
+                filmGrainParams->num_y_points == 0
+            )
+        )
+        {
+            filmGrainParams->num_cb_points = 0;
+            filmGrainParams->num_cr_points = 0;
+        }
+        else
+        {
+            filmGrainParams->num_cb_points = XXX_U8_RB(4);
+            {
+                filmGrainParams->point_cb_value.resize(filmGrainParams->num_cb_points);
+                filmGrainParams->point_cb_scaling.resize(filmGrainParams->num_cb_points);
+            }
+            for (uint8_t i=0; i<filmGrainParams->num_cb_points; i++)
+            {
+                filmGrainParams->point_cb_value[i] = XXX_U8_RB(8);
+                filmGrainParams->point_cb_scaling[i] = XXX_U8_RB(8);
+            }
+            filmGrainParams->num_cr_points = XXX_U8_RB(4);
+            {
+                filmGrainParams->point_cr_value.resize(filmGrainParams->num_cr_points);
+                filmGrainParams->point_cr_scaling.resize(filmGrainParams->num_cr_points);
+            }
+            for (uint8_t i=0; i<filmGrainParams->num_cr_points; i++)
+            {
+                filmGrainParams->point_cr_value[i] = XXX_U8_RB(8);
+                filmGrainParams->point_cr_scaling[i] = XXX_U8_RB(8);
+            }
+        }
+        filmGrainParams->grain_scaling_minus_8 = XXX_U8_RB(2);
+        filmGrainParams->ar_coeff_lag = XXX_U8_RB(2);
+        size_t numPosLuma = 2 * (filmGrainParams->ar_coeff_lag) * (filmGrainParams->ar_coeff_lag + 1);
+        size_t numPosChroma = 0;
+        if (filmGrainParams->num_y_points)
+        {
+            numPosChroma = numPosLuma + 1;
+            filmGrainParams->ar_coeffs_y_plus_128.resize(numPosChroma);
+            for (size_t i=0; i<numPosChroma; i++)
+            {
+                filmGrainParams->ar_coeffs_y_plus_128[i] = XXX_U8_RB(8);
+            }
+        }
+        else
+        {
+            numPosChroma = numPosLuma;
+        }
+        if (filmGrainParams->chroma_scaling_from_luma || filmGrainParams->num_cb_points)
+        {
+            filmGrainParams->ar_coeffs_cb_plus_128.resize(numPosChroma);
+            for (size_t i=0; i<numPosChroma; i++)
+            {
+                filmGrainParams->ar_coeffs_cb_plus_128[i] = XXX_U8_RB(8);
+            }
+        }
+        if (filmGrainParams->chroma_scaling_from_luma || filmGrainParams->num_cr_points)
+        {
+            filmGrainParams->ar_coeffs_cr_plus_128.resize(numPosChroma);
+            for (size_t i=0; i<numPosChroma; i++)
+            {
+                filmGrainParams->ar_coeffs_cr_plus_128[i] = XXX_U8_RB(8);
+            }               
+        }
+        filmGrainParams->ar_coeff_shift_minus_6 = XXX_U8_RB(2);
+        filmGrainParams->grain_scale_shift = XXX_U8_RB(2);
+        if (filmGrainParams->num_cb_points)
+        {
+            filmGrainParams->cb_mult = XXX_U8_RB(8);
+            filmGrainParams->cb_luma_mult = XXX_U8_RB(8);
+            filmGrainParams->cb_offset = XXX_U16_RB(9);
+        }
+        if (filmGrainParams->num_cr_points)
+        {
+            filmGrainParams->cr_mult = XXX_U8_RB(8);
+            filmGrainParams->cr_luma_mult = XXX_U8_RB(8);
+            filmGrainParams->cr_offset = XXX_U16_RB(9);
+        }
+        filmGrainParams->overlap_flag = XXX_U8_RB(1);
+        filmGrainParams->clip_to_restricted_range = XXX_U8_RB(1);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
+void AV1Deserialize::load_grain_params(size_t idx)
+{
+    // Hint : load_grain_params(idx) is a function call that indicates that all the syntax elements read in film_grain_params should be
+    // set equal to the values stored in an area of memory indexed by idx.
+
+}
+
+#undef XXX_U8_RB
+
 } // namespace Codec
 } // namespace Mmp

@@ -26,6 +26,7 @@ public:
 public:
     uint64_t f(size_t n);
     uint64_t uvlc();
+    uint64_t leb128();
 private:
     bool ReadBytes(size_t byte, uint8_t* value);
     void ReadOneByteAuto(bool force = false);

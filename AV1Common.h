@@ -223,6 +223,14 @@ enum class AV1ProfilesType
     AV1_Professional = 2    // "Professional" compliant decoders must be able to decode streams with seq_profile less than or equal to 2
 };
 
+enum class AV1FrameType
+{
+    KEY_FRAME = 0,
+    INTER_FRAME = 1,
+    INTRA_ONLY_FRAME = 2,
+    SWITCH_FRAME
+};
+
 enum class AV1ObuType
 {
     Reserved = 0,
@@ -712,10 +720,78 @@ public:
     ~AV1UncompressedHeaderSyntax() = default;
 public:
     uint8_t  show_existing_frame;
+    uint8_t  frame_type;
+    uint8_t  show_frame;
+    uint8_t  showable_frame;
     uint8_t  frame_to_show_map_idx;
     uint64_t display_frame_id;
+    uint64_t refresh_frame_flags;
 public:
     AV1TemporalPointInfoSyntax::ptr temporal_point_info;
+public:
+    uint8_t FrameIsIntra;
+};
+
+class AV1FilmGrainParamsSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1FilmGrainParamsSyntax>;
+public:
+    AV1FilmGrainParamsSyntax();
+    ~AV1FilmGrainParamsSyntax() = default;
+public:
+    uint8_t  apply_grain;
+    uint16_t grain_seed;
+    uint8_t  update_grain;
+    uint8_t  film_grain_params_ref_idx;
+    uint8_t  num_y_points;
+    std::vector<uint8_t> point_y_value;
+    std::vector<uint8_t> point_y_scaling;
+    uint8_t  chroma_scaling_from_luma;
+    uint8_t  num_cb_points;
+    std::vector<uint8_t> point_cb_value;
+    std::vector<uint8_t> point_cb_scaling;
+    uint8_t  num_cr_points;
+    std::vector<uint8_t> point_cr_value;
+    std::vector<uint8_t> point_cr_scaling;
+    uint8_t  grain_scaling_minus_8;
+    uint8_t  ar_coeff_lag;
+    std::vector<uint8_t> ar_coeffs_y_plus_128;
+    std::vector<uint8_t> ar_coeffs_cb_plus_128;
+    std::vector<uint8_t> ar_coeffs_cr_plus_128;
+    uint8_t  ar_coeff_shift_minus_6;
+    uint8_t  grain_scale_shift;
+    uint8_t  cb_mult;
+    uint8_t  cb_luma_mult;
+    uint16_t cb_offset;
+    uint8_t  cr_mult;
+    uint8_t  cr_luma_mult;
+    uint16_t cr_offset;
+    uint8_t  overlap_flag;
+    uint8_t  clip_to_restricted_range;
+};
+
+/**
+ * @sa 7.20. Reference frame update process
+ */
+class AV1ReferenceFrameContext
+{
+public:
+    AV1ReferenceFrameContext();
+public:
+    uint32_t  RefValid;
+    uint32_t  RefFrameId;
+    uint32_t  RefUpscaledWidth;
+    uint32_t  RefFrameWidth;
+    uint32_t  RefFrameHeight;
+    uint32_t  RefRenderWidth;
+    uint32_t  RefRenderHeight;
+    uint32_t  RefMiCols;
+    uint32_t  RefMiRows;
+    uint8_t   RefFrameType;
+    uint32_t  RefSubsamplingX;
+    uint32_t  RefSubsamplingY;
+    uint32_t  RefBitDepth;
 };
 
 } // namespace Codec
