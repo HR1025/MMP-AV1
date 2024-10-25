@@ -213,6 +213,8 @@ namespace Codec
 #define AV1_PRIMARY_REF_NONE                   7
 #define AV1_BUFFER_POOL_MAX_SIZE               10
 
+extern uint8_t Remap_Lr_Type[4];
+
 /**
  * @sa A.2. Profiles
  */
@@ -229,6 +231,15 @@ enum class AV1FrameType
     INTER_FRAME = 1,
     INTRA_ONLY_FRAME = 2,
     SWITCH_FRAME
+};
+
+enum class AV1InterpolationFilterType
+{
+    AV1_EIGHTTAP = 0,
+    AV1_EIGHTTAP_SMOOTH = 1,
+    AV1_EIGHTTAP_SHARP = 2,
+    AV1_BILINEAR = 3,
+    AV1_SWITCHABLE
 };
 
 enum class AV1ObuType
@@ -364,6 +375,21 @@ enum class AV1ScalabilityModeIdcType
     AV1_SCALABILITY_L4T7_KEY_SHIFT
 };
 
+enum class AV1FrameRestorationType
+{
+    AV1_RESTORE_NONE = 0,
+    AV1_RESTORE_SWITCHABLE = 1,
+    AV1_RESTORE_WIENER = 2,
+    AV1_RESTORE_SGRPROJ = 3
+};
+
+enum class AV1TxMode
+{
+    AV1_ONLY_4X4 = 0,
+    AV1_TX_MODE_LARGEST = 1,
+    AV1_TX_MODE_SELECT = 2
+};
+
 class AV1ColorConfigSyntax
 {
 public:
@@ -384,9 +410,6 @@ public:
     uint8_t  subsampling_y;
     uint8_t  chroma_sample_position;
     uint8_t  separate_uv_delta_q;
-public:
-    uint8_t  BitDepth;
-    uint8_t  NumPlanes;
 };
 
 class AV1TimingInfoSyntax
@@ -436,7 +459,7 @@ public:
     using ptr = std::shared_ptr<AV1OperatingParametersInfoSyntax>;
 public:
     AV1TemporalDelimiterObuSyntax();
-    ~AV1TemporalDelimiterObuSyntax();
+    ~AV1TemporalDelimiterObuSyntax() = default;
 };
 
 class AV1PaddingOBUSyntax
@@ -448,6 +471,19 @@ public:
     ~AV1PaddingOBUSyntax();
 public:
     std::vector<uint8_t> obu_padding_byte;
+};
+
+class AV1RenderSizeSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1RenderSizeSyntax>;
+public:
+    AV1RenderSizeSyntax();
+    ~AV1RenderSizeSyntax() = default;
+public:
+    uint8_t  render_and_frame_size_different;
+    uint16_t render_width_minus_1;
+    uint16_t render_height_minus_1;
 };
 
 class AV1ScalabilityStructureSyntax
@@ -700,6 +736,18 @@ public:
     std::vector<AV1TileListEntrySyntax::ptr> tile_list_entry;
 };
 
+class AV1QuantizerIndexDeltaParametersSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1QuantizerIndexDeltaParametersSyntax>;
+public:
+    AV1QuantizerIndexDeltaParametersSyntax();
+    ~AV1QuantizerIndexDeltaParametersSyntax() = default;
+public:
+    uint8_t  delta_q_present;
+    uint8_t  delta_q_res;
+};
+
 class AV1TemporalPointInfoSyntax
 {
 public:
@@ -709,6 +757,34 @@ public:
     ~AV1TemporalPointInfoSyntax() = default;
 public:
     uint64_t  frame_presentation_time;
+};
+
+class AV1InterpolationFilterSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1InterpolationFilterSyntax>;
+public:
+    AV1InterpolationFilterSyntax();
+    ~AV1InterpolationFilterSyntax() = default;
+public:
+    uint8_t is_filter_switchable;
+    uint8_t interpolation_filter;
+};
+
+class AV1QuantizationParamsSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1QuantizationParamsSyntax>;
+public:
+    AV1QuantizationParamsSyntax();
+    ~AV1QuantizationParamsSyntax() = default;
+public:
+    uint8_t  base_q_idx;
+    uint8_t  diff_uv_delta;
+    uint8_t  using_qmatrix;
+    uint8_t  qm_y;
+    uint8_t  qm_u;
+    uint8_t  qm_v;
 };
 
 class AV1UncompressedHeaderSyntax
@@ -726,10 +802,32 @@ public:
     uint8_t  frame_to_show_map_idx;
     uint64_t display_frame_id;
     uint64_t refresh_frame_flags;
+    uint8_t  frame_size_override_flag;
+    uint8_t  allow_intrabc;
 public:
     AV1TemporalPointInfoSyntax::ptr temporal_point_info;
+};
+
+class AV1TxModeSyntax
+{
 public:
-    uint8_t FrameIsIntra;
+    using ptr = std::shared_ptr<AV1TxModeSyntax>;
+public:
+    AV1TxModeSyntax();
+    ~AV1TxModeSyntax() = default;
+public:
+    uint8_t tx_mode_select;
+};
+
+class AV1FrameReferenceModeSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1FrameReferenceModeSyntax>;
+public:
+    AV1FrameReferenceModeSyntax();
+    ~AV1FrameReferenceModeSyntax() = default;
+public:
+    uint8_t  reference_select;
 };
 
 class AV1FilmGrainParamsSyntax
@@ -771,6 +869,49 @@ public:
     uint8_t  clip_to_restricted_range;
 };
 
+class AV1GeneralTileGroupOBUSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1GeneralTileGroupOBUSyntax>;
+public:
+    AV1GeneralTileGroupOBUSyntax();
+    ~AV1GeneralTileGroupOBUSyntax() = default;
+public:
+    uint8_t  tile_start_and_end_present_flag;
+    uint32_t tg_start;
+    uint32_t tg_end;
+};
+
+class AV1LoopRestorationParamsSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1LoopRestorationParamsSyntax>;
+public:
+    AV1LoopRestorationParamsSyntax();
+    ~AV1LoopRestorationParamsSyntax() = default;
+public:
+    std::vector<uint8_t> lr_type;
+    uint8_t  lr_unit_shift;
+    uint8_t  lr_unit_extra_shift;
+    uint8_t  lr_uv_shift;
+};
+
+class AV1CdefParamsSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1CdefParamsSyntax>;
+public:
+    AV1CdefParamsSyntax();
+    ~AV1CdefParamsSyntax() = default;
+public:
+    uint8_t  cdef_damping_minus_3;
+    uint8_t  cdef_bits;
+    std::vector<uint8_t>  cdef_y_pri_strength;
+    std::vector<uint8_t>  cdef_y_sec_strength;
+    std::vector<uint8_t>  cdef_uv_pri_strength;
+    std::vector<uint8_t>  cdef_uv_sec_strength;
+};
+
 /**
  * @sa 7.20. Reference frame update process
  */
@@ -779,19 +920,41 @@ class AV1ReferenceFrameContext
 public:
     AV1ReferenceFrameContext();
 public:
-    uint32_t  RefValid;
-    uint32_t  RefFrameId;
-    uint32_t  RefUpscaledWidth;
-    uint32_t  RefFrameWidth;
-    uint32_t  RefFrameHeight;
-    uint32_t  RefRenderWidth;
-    uint32_t  RefRenderHeight;
-    uint32_t  RefMiCols;
-    uint32_t  RefMiRows;
-    uint8_t   RefFrameType;
-    uint32_t  RefSubsamplingX;
-    uint32_t  RefSubsamplingY;
-    uint32_t  RefBitDepth;
+    uint32_t  SeenFrameHeader;
+    uint32_t  SuperresDenom;
+    uint32_t  UpscaledWidth;
+    uint32_t  FrameWidth;
+    uint32_t  Valid;
+    uint32_t  FrameId;
+    uint32_t  FrameHeight;
+    uint32_t  RenderWidth;
+    uint32_t  RenderHeight;
+    uint32_t  MiCols;
+    uint32_t  MiRows;
+    uint8_t   FrameType;
+    uint32_t  SubsamplingX;
+    uint32_t  SubsamplingY;
+    uint32_t  BitDepth;
+    uint8_t   DeltaQYDc;
+    uint8_t   DeltaQUDc;
+    uint8_t   DeltaQUAc;
+    uint8_t   DeltaQVDc;
+    uint8_t   DeltaQVAc;
+    uint8_t   NumPlanes;
+    uint64_t  CodedLossless;
+    uint8_t   CdefDamping;
+    uint64_t  FrameRestorationType[4];
+    uint8_t   UsesLr;
+    uint8_t   usesChromaLr;
+    uint8_t   FrameIsIntra;
+    uint8_t   LoopRestorationSize[4];
+    uint8_t   AllLossless;
+    uint8_t   TxMode;
+    uint32_t  NumTiles;
+    uint16_t  TileCols;
+    uint16_t  TileRows;
+    uint16_t  TileColsLog2;
+    uint16_t  TileRowsLog2;
 };
 
 } // namespace Codec

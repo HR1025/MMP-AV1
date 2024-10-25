@@ -27,6 +27,9 @@ public:
     uint64_t f(size_t n);
     uint64_t uvlc();
     uint64_t leb128();
+    uint64_t read_delta_q();
+public:
+    void byte_alignment();
 private:
     bool ReadBytes(size_t byte, uint8_t* value);
     void ReadOneByteAuto(bool force = false);

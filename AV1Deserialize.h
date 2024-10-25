@@ -29,6 +29,16 @@ public:
     ~AV1Deserialize();
 public:
     bool DeserializeSequenceHeaderSyntax(AV1BinaryReader::ptr br, AV1SequenceHeaderSyntax::ptr sequenceHeader);
+    bool DeserializeLoopRestorationParamsSyntax(AV1BinaryReader::ptr br, AV1LoopRestorationParamsSyntax::ptr loopRestorationParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
+    bool DeserializeFrameReferenceModeSyntax(AV1BinaryReader::ptr br, AV1FrameReferenceModeSyntax::ptr frameReferenceMode); 
+    bool DeserializeTxModeSyntax(AV1BinaryReader::ptr br, AV1TxModeSyntax::ptr txMode);
+    bool DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU);
+    bool DeserializeCdefParamsSyntax(AV1BinaryReader::ptr br, AV1CdefParamsSyntax::ptr cdefParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
+    bool DeserializeInterpolationFilterSyntax(AV1BinaryReader::ptr br, AV1InterpolationFilterSyntax::ptr interpolationFilter);
+    bool DeserializeQuantizerIndexDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters);
+    bool DeserializeQuantizationParamsSyntax(AV1BinaryReader::ptr br, AV1QuantizationParamsSyntax::ptr quantizationParams, AV1ColorConfigSyntax::ptr colorConfig);
+    bool DeserializeRenderSizeSyntax(AV1BinaryReader::ptr br, AV1RenderSizeSyntax::ptr renderSize);
+    bool DeserializeTemporalDelimiterObuSyntax(AV1BinaryReader::ptr br, AV1TemporalDelimiterObuSyntax::ptr temporalDelimiterObu);
     bool DeserializeColorConfigSyntax(AV1BinaryReader::ptr br, AV1ColorConfigSyntax::ptr colorConfig, AV1SequenceHeaderSyntax::ptr sequenceHeader);
     bool DeserializeTimingInfoSyntax(AV1BinaryReader::ptr br, AV1TimingInfoSyntax::ptr timingInfo);
     bool DeserializeDecoderModelInfoSyntax(AV1BinaryReader::ptr br, AV1DecoderModelInfoSyntax::ptr decoderModelInfo);
@@ -36,8 +46,8 @@ public:
     bool DeserializeObuHeaderSyntax(AV1BinaryReader::ptr br, AV1ObuHeaderSyntax::ptr obuHeader);
     bool DeserializeObuExtensionHeaderSyntax(AV1BinaryReader::ptr br, AV1ObuExtensionHeaderSyntax::ptr obuExtensionHeader);
     bool DeserializeSuperresParamsSyntax(AV1BinaryReader::ptr br, AV1SuperresParamsSyntax::ptr superresParams, AV1SequenceHeaderSyntax::ptr sequenceHeader);
-    bool DeserializeFrameSizeSyntax(AV1BinaryReader::ptr br, AV1FrameSizeSyntax::ptr frameSize);
     bool DeserializeGeneralTileListOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileListOBUSyntax::ptr generalTileListOBU);
+    bool DeserializeFrameSizeSyntax(AV1BinaryReader::ptr br, AV1FrameSizeSyntax::ptr frameSize, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
     bool DeserializeTileListEntrySyntax(AV1BinaryReader::ptr br, AV1TileListEntrySyntax::ptr tileListEntry);
     bool DeserializeMetadataHighDynamicRangeContentLightLevelSyntax(AV1BinaryReader::ptr br, AV1MetadataHighDynamicRangeContentLightLevelSyntax::ptr metadataHighDynamicRangeContentLightLevel);
     bool DeserializeMetadataHighDynamicRangeMasteringDisplayColorVolumeSyntax(AV1BinaryReader::ptr br, AV1MetadataHighDynamicRangeMasteringDisplayColorVolumeSyntax::ptr metadataHighDynamicRangeMasteringDisplayColorVolume);
@@ -47,14 +57,10 @@ public:
     bool DeserializeUncompressedHeaderSyntax(AV1BinaryReader::ptr br, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
     bool DeserializeTemporalPointInfoSyntax(AV1BinaryReader::ptr br, AV1TemporalPointInfoSyntax::ptr temporalPointInfo, AV1DecoderModelInfoSyntax::ptr decoderModelInfo);
     bool DeserializeFilmGrainParamsSyntax(AV1BinaryReader::ptr br, AV1FilmGrainParamsSyntax::ptr filmGrainParams, AV1SequenceHeaderSyntax::ptr sequenceHeader, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
+    bool DeserializeTrailingBitsSyntax(AV1BinaryReader::ptr br, size_t nbBits);
 public:
     void load_grain_params(size_t idx);
-private:
-    uint32_t SuperresDenom;
-    uint32_t UpscaledWidth;
-    uint32_t FrameWidth;
-    uint64_t MiCols;
-    uint64_t MiRows;
+    void compute_image_size();
 private:
     AV1ReferenceFrameContext _curFrameContext;
     AV1ReferenceFrameContext _referenceFrameContext[AV1_SYMBOL(NUM_REF_FRAMES)];

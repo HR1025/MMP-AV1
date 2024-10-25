@@ -18,11 +18,7 @@ namespace Codec
 
 AV1Deserialize::AV1Deserialize()
 {
-    SuperresDenom = 0;
-    UpscaledWidth = 0;
-    FrameWidth = 0;
-    MiCols = 0;
-    MiRows = 0;
+
 }
 
 AV1Deserialize::~AV1Deserialize()
@@ -229,6 +225,352 @@ bool AV1Deserialize::DeserializeSequenceHeaderSyntax(AV1BinaryReader::ptr br, AV
     }
 }
 
+bool AV1Deserialize::DeserializeLoopRestorationParamsSyntax(AV1BinaryReader::ptr br, AV1LoopRestorationParamsSyntax::ptr loopRestorationParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader)
+{
+    // See also : 5.9.20. Loop restoration params syntax
+    try
+    {
+        if (_curFrameContext.AllLossless || uncompressedHeader->allow_intrabc ||
+            !sequenceHeader->enable_restoration
+        )
+        {
+            _curFrameContext.FrameRestorationType[0] = (uint8_t)AV1FrameRestorationType::AV1_RESTORE_NONE;
+            _curFrameContext.FrameRestorationType[1] = (uint8_t)AV1FrameRestorationType::AV1_RESTORE_NONE;
+            _curFrameContext.FrameRestorationType[2] = (uint8_t)AV1FrameRestorationType::AV1_RESTORE_NONE;
+            _curFrameContext.UsesLr = 0;
+            return true;
+        }
+        _curFrameContext.UsesLr = 0;
+        _curFrameContext.usesChromaLr = 0;
+        for (uint8_t i=0; i<_curFrameContext.NumPlanes; i++)
+        {
+            uint8_t lr_type = XXX_U8_RB(2);
+            _curFrameContext.FrameRestorationType[i] = Remap_Lr_Type[lr_type];
+            if (_curFrameContext.FrameRestorationType[i] != (uint8_t)AV1FrameRestorationType::AV1_RESTORE_NONE)
+            {
+                _curFrameContext.UsesLr = 1;
+                if (i>0)
+                {
+                    _curFrameContext.usesChromaLr = 1;
+                }
+            }
+            loopRestorationParams->lr_type.push_back(lr_type);
+        }
+        if (_curFrameContext.UsesLr)
+        {
+            if (sequenceHeader->use_128x128_superblock)
+            {
+                loopRestorationParams->lr_unit_shift = XXX_U8_RB(1);
+                loopRestorationParams->lr_unit_shift++;
+            }
+            else
+            {
+                loopRestorationParams->lr_unit_shift = XXX_U8_RB(1);
+                if (loopRestorationParams->lr_unit_shift)
+                {
+                    loopRestorationParams->lr_unit_extra_shift = XXX_U8_RB(1);
+                    loopRestorationParams->lr_unit_shift += loopRestorationParams->lr_unit_extra_shift;
+                }
+            }
+            _curFrameContext.LoopRestorationSize[0] = AV1_SYMBOL(RESTORATION_TILESIZE_MAX) >> (2 - loopRestorationParams->lr_unit_shift);
+            if (sequenceHeader->color_config->subsampling_x && sequenceHeader->color_config->subsampling_y && _curFrameContext.usesChromaLr)
+            {
+                loopRestorationParams->lr_uv_shift = XXX_U8_RB(1);
+            }
+            else
+            {
+                loopRestorationParams->lr_uv_shift = 0;
+            }
+            _curFrameContext.LoopRestorationSize[1] = _curFrameContext.LoopRestorationSize[0] >> loopRestorationParams->lr_uv_shift;
+            _curFrameContext.LoopRestorationSize[2] = _curFrameContext.LoopRestorationSize[0] >> loopRestorationParams->lr_uv_shift;
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeFrameReferenceModeSyntax(AV1BinaryReader::ptr br, AV1FrameReferenceModeSyntax::ptr frameReferenceMode)
+{
+    // See also : 5.9.23. Frame reference mode syntax
+    try
+    {
+        if (_curFrameContext.FrameIsIntra)
+        {
+            frameReferenceMode->reference_select = 0;
+        }
+        else
+        {
+            frameReferenceMode->reference_select = XXX_U8_RB(1);
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeTxModeSyntax(AV1BinaryReader::ptr br, AV1TxModeSyntax::ptr txMode)
+{
+    // See also : 5.9.21. TX mode syntax
+    try
+    {
+        if (_curFrameContext.CodedLossless == 1)
+        {
+            _curFrameContext.TxMode = (uint8_t)AV1TxMode::AV1_ONLY_4X4;
+        }
+        else
+        {
+            txMode->tx_mode_select = XXX_U8_RB(1);
+            if (txMode->tx_mode_select)
+            {
+                _curFrameContext.TxMode = (uint8_t)AV1TxMode::AV1_TX_MODE_SELECT;
+            }
+            else
+            {
+                _curFrameContext.TxMode = (uint8_t)AV1TxMode::AV1_TX_MODE_LARGEST;
+            }
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU)
+{
+    // See also : 5.11.1. General tile group OBU syntax
+    try
+    {
+        _curFrameContext.NumTiles = _curFrameContext.TileCols * _curFrameContext.TileRows;
+        generalTileGroupOBU->tile_start_and_end_present_flag = 0;
+        if (_curFrameContext.NumTiles > 1)
+        {
+            generalTileGroupOBU->tile_start_and_end_present_flag = XXX_U8_RB(1);
+        }
+        if (_curFrameContext.NumTiles == 1 || !generalTileGroupOBU->tile_start_and_end_present_flag)
+        {
+            generalTileGroupOBU->tg_start = 0;
+            generalTileGroupOBU->tg_end = _curFrameContext.NumTiles - 1;
+        }
+        else
+        {
+            size_t tileBits = _curFrameContext.TileColsLog2 + _curFrameContext.TileRowsLog2;
+            generalTileGroupOBU->tg_start = XXX_U32_RB(tileBits);
+            generalTileGroupOBU->tg_end = XXX_U32_RB(tileBits);
+        }
+        br->byte_alignment();
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeCdefParamsSyntax(AV1BinaryReader::ptr br, AV1CdefParamsSyntax::ptr cdefParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader)
+{
+    // See also : 5.9.19. CDEF params syntax
+    try
+    {
+        if (_curFrameContext.CodedLossless || uncompressedHeader->allow_intrabc ||
+            !sequenceHeader->enable_cdef
+        )
+        {
+            cdefParams->cdef_bits = 0;
+            {
+                {
+                    cdefParams->cdef_y_pri_strength.resize(1);
+                    cdefParams->cdef_y_sec_strength.resize(1);
+                    cdefParams->cdef_uv_pri_strength.resize(1);
+                    cdefParams->cdef_uv_sec_strength.resize(1);
+                }
+                cdefParams->cdef_y_pri_strength[0] = 0;
+                cdefParams->cdef_y_sec_strength[0] = 0;
+                cdefParams->cdef_uv_pri_strength[0] = 0;
+                cdefParams->cdef_uv_sec_strength[0] = 0;
+                _curFrameContext.CdefDamping = 3;
+                return true;
+            }
+        }
+        cdefParams->cdef_damping_minus_3 = XXX_U8_RB(2);
+        _curFrameContext.CdefDamping = cdefParams->cdef_damping_minus_3 + 3;
+        cdefParams->cdef_bits = XXX_U8_RB(2);
+        {
+            cdefParams->cdef_y_pri_strength.resize(1 << cdefParams->cdef_bits);
+            cdefParams->cdef_y_sec_strength.resize(1 << cdefParams->cdef_bits);
+            cdefParams->cdef_uv_pri_strength.resize(1 << cdefParams->cdef_bits);
+            cdefParams->cdef_uv_sec_strength.resize(1 << cdefParams->cdef_bits);
+        }
+        for (size_t i=0; i<(size_t)(1 << cdefParams->cdef_bits); i++)
+        {
+            cdefParams->cdef_y_pri_strength[i] = XXX_U8_RB(4);
+            cdefParams->cdef_y_sec_strength[i] = XXX_U8_RB(2);
+            if (cdefParams->cdef_y_sec_strength[i] == 3)
+            {
+                cdefParams->cdef_y_sec_strength[i] += 1;
+            }
+            if (_curFrameContext.NumPlanes > 1)
+            {
+                cdefParams->cdef_uv_pri_strength[i] = XXX_U8_RB(4);
+                cdefParams->cdef_uv_sec_strength[i] = XXX_U8_RB(2);
+                if (cdefParams->cdef_uv_sec_strength[i] == 3)
+                {
+                    cdefParams->cdef_uv_sec_strength[i] += 1;
+                }
+            }
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeInterpolationFilterSyntax(AV1BinaryReader::ptr br, AV1InterpolationFilterSyntax::ptr interpolationFilter)
+{
+    // See also : 5.9.10. Interpolation filter syntax
+    try
+    {
+        interpolationFilter->is_filter_switchable = XXX_U8_RB(1);
+        if (interpolationFilter->is_filter_switchable == 1)
+        {
+            interpolationFilter->interpolation_filter = (uint8_t)AV1InterpolationFilterType::AV1_SWITCHABLE;
+        }
+        else
+        {
+            interpolationFilter->interpolation_filter = XXX_U8_RB(2);
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeQuantizerIndexDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters)
+{
+    // See also : 5.9.17. Quantizer index delta parameters syntax
+    try
+    {
+        quantizerIndexDeltaParameters->delta_q_res = 0;
+        quantizerIndexDeltaParameters->delta_q_present = 0;
+        // TODO
+        assert(false);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeQuantizationParamsSyntax(AV1BinaryReader::ptr br, AV1QuantizationParamsSyntax::ptr quantizationParams, AV1ColorConfigSyntax::ptr colorConfig)
+{
+    // See also : 5.9.12. Quantization params syntax
+    try
+    {
+        quantizationParams->base_q_idx = XXX_U8_RB(8);
+        _curFrameContext.DeltaQYDc = (uint8_t)br->read_delta_q();
+        if (_curFrameContext.NumPlanes > 1)
+        {
+            if (colorConfig->separate_uv_delta_q)
+            {
+                quantizationParams->diff_uv_delta = XXX_U8_RB(1);
+            }
+            else
+            {
+                quantizationParams->diff_uv_delta = 0;
+            }
+            _curFrameContext.DeltaQUDc = (uint8_t)br->read_delta_q();
+            _curFrameContext.DeltaQUAc = (uint8_t)br->read_delta_q();
+            if (quantizationParams->diff_uv_delta)
+            {
+                _curFrameContext.DeltaQVDc = (uint8_t)br->read_delta_q();
+                _curFrameContext.DeltaQVAc = (uint8_t)br->read_delta_q();
+            }
+            else
+            {
+                _curFrameContext.DeltaQVDc = _curFrameContext.DeltaQUDc;
+                _curFrameContext.DeltaQVAc = _curFrameContext.DeltaQUAc;
+            }
+        }
+        else
+        {
+            _curFrameContext.DeltaQUDc = 0;
+            _curFrameContext.DeltaQUAc = 0;
+            _curFrameContext.DeltaQVDc = 0;
+            _curFrameContext.DeltaQVAc = 0;
+        }
+        quantizationParams->using_qmatrix = XXX_U8_RB(1);
+        if (quantizationParams->using_qmatrix)
+        {
+            quantizationParams->qm_y = XXX_U8_RB(4);
+            quantizationParams->qm_u = XXX_U8_RB(4);
+            if (colorConfig->separate_uv_delta_q)
+            {
+                quantizationParams->qm_v = quantizationParams->qm_u;
+            }
+            else
+            {
+                quantizationParams->qm_v = XXX_U8_RB(4);
+            }
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeRenderSizeSyntax(AV1BinaryReader::ptr br, AV1RenderSizeSyntax::ptr renderSize)
+{
+    // See also : 5.9.6. Render size syntax
+    try
+    {
+        renderSize->render_and_frame_size_different = XXX_U8_RB(1);
+        if (renderSize->render_and_frame_size_different == 1)
+        {
+            renderSize->render_width_minus_1 = XXX_U16_RB(16);
+            renderSize->render_height_minus_1 = XXX_U16_RB(16);
+            _curFrameContext.RenderWidth = renderSize->render_width_minus_1 + 1;
+            _curFrameContext.RenderHeight = renderSize->render_height_minus_1 + 1;
+        }
+        else
+        {
+            _curFrameContext.RenderWidth = _curFrameContext.UpscaledWidth;
+            _curFrameContext.RenderHeight = _curFrameContext.FrameHeight;
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool AV1Deserialize::DeserializeTemporalDelimiterObuSyntax(AV1BinaryReader::ptr br, AV1TemporalDelimiterObuSyntax::ptr temporalDelimiterObu)
+{
+    // See also : 5.6. Temporal delimiter obu syntax
+    try
+    {
+        _curFrameContext.SeenFrameHeader = 0;
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 bool AV1Deserialize::DeserializeColorConfigSyntax(AV1BinaryReader::ptr br, AV1ColorConfigSyntax::ptr colorConfig, AV1SequenceHeaderSyntax::ptr sequenceHeader)
 {
     // See also : 5.5.2. Color config syntax
@@ -238,11 +580,11 @@ bool AV1Deserialize::DeserializeColorConfigSyntax(AV1BinaryReader::ptr br, AV1Co
         if (sequenceHeader->seq_profile == (uint8_t)AV1ProfilesType::AV1_Professional && colorConfig->high_bitdepth)
         {
             colorConfig->twelve_bit = XXX_U8_RB(1);
-            colorConfig->BitDepth = colorConfig->twelve_bit ? 12 : 10;
+            _curFrameContext.BitDepth = colorConfig->twelve_bit ? 12 : 10;
         }
         else if (sequenceHeader->seq_profile <= (uint8_t)AV1ProfilesType::AV1_Professional)
         {
-            colorConfig->BitDepth = colorConfig->high_bitdepth ? 10 : 8;
+            _curFrameContext.BitDepth = colorConfig->high_bitdepth ? 10 : 8;
         }
         if (sequenceHeader->seq_profile == (uint8_t)AV1ProfilesType::AV1_High)
         {
@@ -252,7 +594,7 @@ bool AV1Deserialize::DeserializeColorConfigSyntax(AV1BinaryReader::ptr br, AV1Co
         {
             colorConfig->mono_chrome = XXX_U8_RB(1);
         }
-        colorConfig->NumPlanes = colorConfig->mono_chrome ? 1 : 3;
+        _curFrameContext.NumPlanes = colorConfig->mono_chrome ? 1 : 3;
         colorConfig->color_description_present_flag = XXX_U8_RB(1);
         if (colorConfig->color_description_present_flag)
         {
@@ -298,7 +640,7 @@ bool AV1Deserialize::DeserializeColorConfigSyntax(AV1BinaryReader::ptr br, AV1Co
             }
             else
             {
-                if (colorConfig->BitDepth == 12)
+                if (_curFrameContext.BitDepth == 12)
                 {
                     colorConfig->subsampling_x = XXX_U8_RB(1);
                     if (colorConfig->subsampling_x)
@@ -392,11 +734,12 @@ bool AV1Deserialize::DeserializeObuHeaderSyntax(AV1BinaryReader::ptr br, AV1ObuH
     try
     {
         obuHeader->obu_forbidden_bit = XXX_U8_RB(1);
+        MPP_AV1_SYNTAXT_STRICT_CHECK(obuHeader->obu_forbidden_bit == 0, "obu_forbidden_bit must be set to 0", return false;);
         obuHeader->obu_type = XXX_U8_RB(4);
         obuHeader->obu_extension_flag = XXX_U8_RB(1);
         obuHeader->obu_has_size_field = XXX_U8_RB(1);
         obuHeader->obu_reserved_1bit = XXX_U8_RB(1);
-        if (obuHeader->obu_extension_flag)
+        if (obuHeader->obu_extension_flag == 1)
         {
             obuHeader->obu_extension_header = std::make_shared<AV1ObuExtensionHeaderSyntax>();
             if (!DeserializeObuExtensionHeaderSyntax(br, obuHeader->obu_extension_header))
@@ -445,14 +788,14 @@ bool AV1Deserialize::DeserializeSuperresParamsSyntax(AV1BinaryReader::ptr br, AV
         if (superresParams->use_superres)
         {
             superresParams->coded_denom = (uint32_t)br->f(AV1_SYMBOL(SUPERRES_DENOM_BITS));
-            SuperresDenom = superresParams->coded_denom + AV1_SYMBOL(SUPERRES_DENOM_MIN);
+            _curFrameContext.SuperresDenom = superresParams->coded_denom + AV1_SYMBOL(SUPERRES_DENOM_MIN);
         }
         else
         {
-            SuperresDenom = AV1_SYMBOL(SUPERRES_NUM);
+            _curFrameContext.SuperresDenom = AV1_SYMBOL(SUPERRES_NUM);
         }
-        UpscaledWidth = FrameWidth;
-        FrameWidth = (UpscaledWidth * AV1_SYMBOL(SUPERRES_NUM) + (SuperresDenom / 2)) / SuperresDenom;
+        _curFrameContext.UpscaledWidth = _curFrameContext.FrameWidth;
+        _curFrameContext.FrameWidth = (_curFrameContext.UpscaledWidth * AV1_SYMBOL(SUPERRES_NUM) + (_curFrameContext.SuperresDenom / 2)) / _curFrameContext.SuperresDenom;
         return true;
     }
     catch (...)
@@ -461,12 +804,33 @@ bool AV1Deserialize::DeserializeSuperresParamsSyntax(AV1BinaryReader::ptr br, AV
     }
 }
 
-bool AV1Deserialize::DeserializeFrameSizeSyntax(AV1BinaryReader::ptr br, AV1FrameSizeSyntax::ptr frameSize)
+bool AV1Deserialize::DeserializeFrameSizeSyntax(AV1BinaryReader::ptr br, AV1FrameSizeSyntax::ptr frameSize, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader)
 {
     // See also : 5.9.5. Frame size syntax
     try
     {
-        // todo
+        if (uncompressedHeader->frame_size_override_flag)
+        {
+            size_t n = 0;
+            n = sequenceHeader->frame_width_bits_minus_1 + 1;
+            frameSize->frame_width_minus_1 = XXX_U32_RB(n);
+            n = sequenceHeader->frame_height_bits_minus_1 + 1;
+            frameSize->frame_height_minus_1 = XXX_U32_RB(n);
+            _curFrameContext.FrameWidth = frameSize->frame_width_minus_1 + 1;
+            _curFrameContext.FrameHeight = frameSize->frame_height_minus_1 + 1;
+        }
+        else
+        {
+            _curFrameContext.FrameWidth = sequenceHeader->max_frame_width_minus_1 + 1;
+            _curFrameContext.FrameHeight = sequenceHeader->max_frame_height_minus_1 + 1;
+        }
+        frameSize->superres_params = std::make_shared<AV1SuperresParamsSyntax>();
+        if (!DeserializeSuperresParamsSyntax(br, frameSize->superres_params, sequenceHeader))
+        {
+            AV1_LOG_ERROR << "DeserializeSuperresParamsSyntax fail";
+            return false;
+        }
+        compute_image_size();
         return true;
     }
     catch (...)
@@ -694,7 +1058,7 @@ bool AV1Deserialize::DeserializeUncompressedHeaderSyntax(AV1BinaryReader::ptr br
         {
             uncompressedHeader->show_existing_frame = 0;
             uncompressedHeader->frame_type = (uint8_t)AV1FrameType::KEY_FRAME;
-            uncompressedHeader->FrameIsIntra = 1;
+            _curFrameContext.FrameIsIntra = 1;
             uncompressedHeader->show_frame = 1;
             uncompressedHeader->showable_frame = 0;
         }
@@ -719,7 +1083,7 @@ bool AV1Deserialize::DeserializeUncompressedHeaderSyntax(AV1BinaryReader::ptr br
                 {
                     uncompressedHeader->display_frame_id = XXX_U64_RB((size_t)idLen);
                 }
-                uncompressedHeader->frame_type = _referenceFrameContext[uncompressedHeader->frame_to_show_map_idx].RefFrameType;
+                uncompressedHeader->frame_type = _referenceFrameContext[uncompressedHeader->frame_to_show_map_idx].FrameType;
                 if (uncompressedHeader->frame_type == (uint8_t)AV1FrameType::KEY_FRAME)
                 {
                     uncompressedHeader->refresh_frame_flags = allFrames;
@@ -887,6 +1251,27 @@ bool AV1Deserialize::DeserializeFilmGrainParamsSyntax(AV1BinaryReader::ptr br, A
     } 
 }
 
+bool AV1Deserialize::DeserializeTrailingBitsSyntax(AV1BinaryReader::ptr br, size_t nbBits)
+{
+    // See also : 5.3.4. Trailing bits syntax
+    try
+    {
+        uint8_t trailing_one_bit;
+        trailing_one_bit = XXX_U8_RB(1);
+        nbBits--;
+        while (nbBits > 0)
+        {
+            trailing_one_bit = XXX_U8_RB(1);
+            nbBits--;
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
 void AV1Deserialize::load_grain_params(size_t idx)
 {
     // Hint : load_grain_params(idx) is a function call that indicates that all the syntax elements read in film_grain_params should be
@@ -894,7 +1279,17 @@ void AV1Deserialize::load_grain_params(size_t idx)
 
 }
 
+void AV1Deserialize::compute_image_size()
+{
+    // See also : 5.9.9. Compute image size function
+    _curFrameContext.MiCols = 2 * ((_curFrameContext.FrameWidth + 7) >> 3);
+    _curFrameContext.MiRows = 2 * ((_curFrameContext.FrameHeight + 7) >> 3);
+}
+
 #undef XXX_U8_RB
+#undef XXX_U16_RB
+#undef XXX_U32_RB
+#undef XXX_U64_RB
 
 } // namespace Codec
 } // namespace Mmp

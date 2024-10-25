@@ -7,6 +7,12 @@ namespace Mmp
 namespace Codec
 {
 
+uint8_t Remap_Lr_Type[4] = {(uint8_t)AV1FrameRestorationType::AV1_RESTORE_NONE, 
+                            (uint8_t)AV1FrameRestorationType::AV1_RESTORE_SWITCHABLE, 
+                            (uint8_t)AV1FrameRestorationType::AV1_RESTORE_WIENER,
+                            (uint8_t)AV1FrameRestorationType::AV1_RESTORE_SGRPROJ
+                           };
+
 AV1ColorConfigSyntax::AV1ColorConfigSyntax()
 {
     high_bitdepth = 0;
@@ -21,8 +27,6 @@ AV1ColorConfigSyntax::AV1ColorConfigSyntax()
     subsampling_y = 0;
     chroma_sample_position = 0;
     separate_uv_delta_q = 0;
-    BitDepth = 0;
-    NumPlanes = 0;
 }
 
 AV1TimingInfoSyntax::AV1TimingInfoSyntax()
@@ -46,6 +50,11 @@ AV1OperatingParametersInfoSyntax::AV1OperatingParametersInfoSyntax()
     decoder_buffer_delay = 0;
     encoder_buffer_delay = 0;
     low_delay_mode_flag = 0;
+}
+
+AV1TemporalDelimiterObuSyntax::AV1TemporalDelimiterObuSyntax()
+{
+    
 }
 
 AV1ObuExtensionHeaderSyntax::AV1ObuExtensionHeaderSyntax()
@@ -86,9 +95,31 @@ AV1GeneralTileListOBUSyntax::AV1GeneralTileListOBUSyntax()
     tile_count_minus_1 = 0;
 }
 
+AV1QuantizerIndexDeltaParametersSyntax::AV1QuantizerIndexDeltaParametersSyntax()
+{
+    delta_q_present = 0;
+    delta_q_res = 0;
+}
+
 AV1TemporalPointInfoSyntax::AV1TemporalPointInfoSyntax()
 {
     frame_presentation_time = 0;
+}
+
+AV1InterpolationFilterSyntax::AV1InterpolationFilterSyntax()
+{
+    is_filter_switchable = 0;
+    interpolation_filter = 0;
+}
+
+AV1QuantizationParamsSyntax::AV1QuantizationParamsSyntax()
+{
+    base_q_idx = 0;
+    diff_uv_delta = 0;
+    using_qmatrix = 0;
+    qm_y = 0;
+    qm_u = 0;
+    qm_v = 0;
 }
 
 AV1MetadataITUT_T35Syntax::AV1MetadataITUT_T35Syntax()
@@ -135,6 +166,13 @@ AV1MetadataTimecodeSyntax::AV1MetadataTimecodeSyntax()
     time_offset_value = 0;
 }
 
+AV1RenderSizeSyntax::AV1RenderSizeSyntax()
+{
+    render_and_frame_size_different = 0;
+    render_width_minus_1 = 0;
+    render_height_minus_1 = 0;
+}
+
 AV1ScalabilityStructureSyntax::AV1ScalabilityStructureSyntax()
 {
     spatial_layers_cnt_minus_1 = 0;
@@ -143,6 +181,16 @@ AV1ScalabilityStructureSyntax::AV1ScalabilityStructureSyntax()
     temporal_group_description_present_flag = 0;
     scalability_structure_reserved_3bits = 0;
     temporal_group_size = 0;
+}
+
+AV1TxModeSyntax::AV1TxModeSyntax()
+{
+    tx_mode_select = 0;
+}
+
+AV1FrameReferenceModeSyntax::AV1FrameReferenceModeSyntax()
+{
+    reference_select = 0;
 }
 
 AV1FilmGrainParamsSyntax::AV1FilmGrainParamsSyntax()
@@ -168,6 +216,27 @@ AV1FilmGrainParamsSyntax::AV1FilmGrainParamsSyntax()
     overlap_flag = 0;
     clip_to_restricted_range = 0;
 }
+
+AV1GeneralTileGroupOBUSyntax::AV1GeneralTileGroupOBUSyntax()
+{
+    tile_start_and_end_present_flag = 0;
+    tg_start = 0;
+    tg_end = 0;
+}
+
+AV1LoopRestorationParamsSyntax::AV1LoopRestorationParamsSyntax()
+{
+    lr_unit_shift = 0;
+    lr_unit_extra_shift = 0;
+    lr_uv_shift = 0;
+}
+
+AV1CdefParamsSyntax::AV1CdefParamsSyntax()
+{
+    cdef_damping_minus_3 = 0;
+    cdef_bits = 0;
+}
+
 
 } // namespace Codec
 } // namespace Mmp

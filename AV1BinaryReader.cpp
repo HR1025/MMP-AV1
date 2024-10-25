@@ -116,6 +116,23 @@ uint64_t AV1BinaryReader::leb128()
     return value;
 }
 
+uint64_t read_delta_q()
+{
+    uint64_t delta_coded = 0;
+    // TODO : 5.9.13. Delta quantizer syntax
+    return delta_coded;
+}
+
+void AV1BinaryReader::byte_alignment()
+{
+    // See also : 5.3.5. Byte alignment syntax
+    uint8_t zero_bit = 0;
+    if (_curBitPos & 7)
+    {
+        zero_bit = (uint8_t)f(1);
+    }
+}
+
 bool AV1BinaryReader::ReadBytes(size_t byte, uint8_t* value)
 {
     size_t readByte = _reader->Read(value, byte);
