@@ -22,14 +22,14 @@ namespace Codec
 {
 
 #define AV1_SYMBOL(name)                       AV1_##name
-#define AV1_SYMBOL_REFS_PER_FRAME              7
-#define AV1_SYMBOL_TOTAL_REFS_PER_FRAME        8
-#define AV1_SYMBOL_BLOCK_SIZE_GROUPS           4
-#define AV1_SYMBOL_BLOCK_SIZES                 22
-#define AV1_SYMBOL_BLOCK_INVALID               22
-#define AV1_SYMBOL_MAX_SB_SIZE                 128
-#define AV1_SYMBOL_MI_SIZE                     4
-#define AV1_SYMBOL_MI_SIZE_LOG2                2
+#define AV1_REFS_PER_FRAME                     7
+#define AV1_TOTAL_REFS_PER_FRAME               8
+#define AV1_BLOCK_SIZE_GROUPS                  4
+#define AV1_BLOCK_SIZES                        22
+#define AV1_BLOCK_INVALID                      22
+#define AV1_MAX_SB_SIZE                        128
+#define AV1_MI_SIZE                            4
+#define AV1_MI_SIZE_LOG2                       2
 #define AV1_MAX_TILE_WIDTH                     4096
 #define AV1_MAX_TILE_AREA                      (4096 * 2304)
 #define AV1_MAX_TILE_ROWS                      64
@@ -213,6 +213,8 @@ namespace Codec
 #define AV1_PRIMARY_REF_NONE                   7
 #define AV1_BUFFER_POOL_MAX_SIZE               10
 
+#define AV1_REF(name) (int8_t)AV1RefFrameType::AV1_##name
+
 extern uint8_t Remap_Lr_Type[4];
 
 /**
@@ -381,6 +383,19 @@ enum class AV1FrameRestorationType
     AV1_RESTORE_SWITCHABLE = 1,
     AV1_RESTORE_WIENER = 2,
     AV1_RESTORE_SGRPROJ = 3
+};
+
+enum class AV1RefFrameType
+{
+    AV1_NONE = -1,
+    AV1_INTRA_FRAME = 0,
+    AV1_LAST_FRAME = 1,
+    AV1_LAST2_FRAME = 2,
+    AV1_LAST3_FRAME = 3,
+    AV1_GOLDEN_FRAME = 4,
+    AV1_BWDREF_FRAME = 5,
+    AV1_ALTREF2_FRAME = 6,
+    AV1_ALTREF_FRAME
 };
 
 enum class AV1TxMode
@@ -912,6 +927,17 @@ public:
     std::vector<uint8_t>  cdef_uv_sec_strength;
 };
 
+class AV1GeneralFrameHeaderOBUSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1GeneralFrameHeaderOBUSyntax>;
+public:
+    AV1GeneralFrameHeaderOBUSyntax();
+    ~AV1GeneralFrameHeaderOBUSyntax() = default;
+public:
+    AV1UncompressedHeaderSyntax::ptr uncompressed_header;
+};
+
 /**
  * @sa 7.20. Reference frame update process
  */
@@ -920,6 +946,13 @@ class AV1ReferenceFrameContext
 public:
     AV1ReferenceFrameContext();
 public:
+    uint8_t   OrderHintBits;
+    int64_t   OrderHint;
+    int64_t   lastOrderHint;
+    int64_t   goldOrderHint;
+    int64_t   curFrameHint;
+    int64_t   latestOrderHint;
+    int64_t   earliestOrderHint;
     uint32_t  SeenFrameHeader;
     uint32_t  SuperresDenom;
     uint32_t  UpscaledWidth;

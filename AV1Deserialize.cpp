@@ -342,6 +342,34 @@ bool AV1Deserialize::DeserializeTxModeSyntax(AV1BinaryReader::ptr br, AV1TxModeS
     }
 }
 
+bool AV1Deserialize::DeserializeGeneralFrameHeaderOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralFrameHeaderOBUSyntax::ptr generalFrameHeaderOBU, AV1SequenceHeaderSyntax::ptr sequenceHeader)
+{
+    // See also : 5.9.1. General frame header OBU syntax
+    try
+    {
+        if (_curFrameContext.SeenFrameHeader == 1)
+        {
+            // TODO
+        }
+        else
+        {
+            _curFrameContext.SeenFrameHeader = 1;
+            generalFrameHeaderOBU->uncompressed_header = std::make_shared<AV1UncompressedHeaderSyntax>();
+            if (DeserializeUncompressedHeaderSyntax(br, generalFrameHeaderOBU->uncompressed_header, sequenceHeader))
+            {
+                AV1_LOG_ERROR << "DeserializeUncompressedHeaderSyntax fail";
+                return false;
+            }
+            
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 bool AV1Deserialize::DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU)
 {
     // See also : 5.11.1. General tile group OBU syntax
@@ -605,8 +633,8 @@ bool AV1Deserialize::DeserializeColorConfigSyntax(AV1BinaryReader::ptr br, AV1Co
         else
         {
             colorConfig->color_primaries = (uint8_t)AV1ColorPrimariesType::AV1_CP_UNSPECIFIED;
-            colorConfig->transfer_characteristics = (uint8_t)AV1ColorPrimariesType::AV1_CP_UNSPECIFIED;
-            colorConfig->matrix_coefficients = (uint8_t)AV1ColorPrimariesType::AV1_CP_UNSPECIFIED;
+            colorConfig->transfer_characteristics = (uint8_t)AV1TransferCharacteristicsType::AV1_TC_UNSPECIFIED;
+            colorConfig->matrix_coefficients = (uint8_t)AV1MatrixCoefficientsType::AV1_MC_UNSPECIFIED;
         }
         if (colorConfig->mono_chrome)
         {
@@ -1251,6 +1279,112 @@ bool AV1Deserialize::DeserializeFilmGrainParamsSyntax(AV1BinaryReader::ptr br, A
     } 
 }
 
+void AV1Deserialize::SetFrameRefsProcess(int8_t ref_frame_idx[AV1_SYMBOL(REFS_PER_FRAME)], uint8_t usedFrame[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t shiftedOrderHints[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t RefOrderHint[AV1_SYMBOL(NUM_REF_FRAMES)], uint8_t last_frame_idx, uint8_t gold_frame_idx, AV1SequenceHeaderSyntax::ptr sequenceHeader)
+{
+    for (size_t i=0; i<AV1_SYMBOL(REFS_PER_FRAME); i++)
+    {
+        ref_frame_idx[i] = -1;
+    }
+    if (AV1_REF(LAST_FRAME) - AV1_REF(LAST_FRAME) > 0 && AV1_REF(LAST_FRAME) - AV1_REF(LAST_FRAME) < AV1_SYMBOL(REFS_PER_FRAME))
+    {
+        ref_frame_idx[AV1_REF(LAST_FRAME) - AV1_REF(LAST_FRAME)] = last_frame_idx;
+    }
+    if (AV1_REF(GOLDEN_FRAME) - AV1_REF(LAST_FRAME) > 0 && AV1_REF(GOLDEN_FRAME) - AV1_REF(LAST_FRAME) < AV1_SYMBOL(REFS_PER_FRAME))
+    {
+        ref_frame_idx[AV1_REF(GOLDEN_FRAME) - AV1_REF(LAST_FRAME)] = gold_frame_idx;
+    }
+
+    for (size_t i=0; i<AV1_SYMBOL(NUM_REF_FRAMES); i++)
+    {
+        usedFrame[i] = 0;
+    }
+    if (last_frame_idx > 0 && last_frame_idx < AV1_SYMBOL(NUM_REF_FRAMES))
+    {
+        usedFrame[last_frame_idx] = 1;
+    }
+    if (gold_frame_idx > 0 && gold_frame_idx < AV1_SYMBOL(NUM_REF_FRAMES))
+    {
+        usedFrame[gold_frame_idx] = 1;
+    }
+    // A variable curFrameHint is set equal to 1 << (OrderHintBits - 1).
+    _curFrameContext.curFrameHint = (uint64_t)1 << (_curFrameContext.OrderHintBits - 1);
+    for (size_t i=0; i<AV1_SYMBOL(NUM_REF_FRAMES); i++)
+    {
+        shiftedOrderHints[i] = _curFrameContext.curFrameHint + get_relative_dist(RefOrderHint[i], _curFrameContext.OrderHint, sequenceHeader);
+    }
+    // The variable lastOrderHint (representing the expected output order for LAST_FRAME) is set equal to shiftedOrderHints[last_frame_idx ].
+    if (last_frame_idx > 0 && last_frame_idx < AV1_SYMBOL(NUM_REF_FRAMES))
+    {
+        _curFrameContext.lastOrderHint = shiftedOrderHints[last_frame_idx];
+    }
+    // The variable goldOrderHint (representing the expected output order for GOLDEN_FRAME) is set equal to shiftedOrderHints[ gold_frame_idx ].
+    if (gold_frame_idx > 0 && gold_frame_idx < AV1_SYMBOL(NUM_REF_FRAMES))
+    {
+        _curFrameContext.goldOrderHint = shiftedOrderHints[gold_frame_idx];
+    }
+    // ALTREF_FRAME
+    {
+        int8_t ref = find_latest_backward(usedFrame, shiftedOrderHints);
+        if (ref >= 0 && ref < AV1_SYMBOL(REFS_PER_FRAME) && ref < AV1_SYMBOL(NUM_REF_FRAMES))
+        {
+            ref_frame_idx[AV1_REF(ALTREF_FRAME) - AV1_REF(LAST_FRAME)] = ref;
+            usedFrame[ref] = 1;
+        }
+    }
+    // BWDREF_FRAME
+    {
+        int8_t ref = find_earliest_backward(usedFrame, shiftedOrderHints);
+        if (ref >= 0 && ref < AV1_SYMBOL(REFS_PER_FRAME) && ref < AV1_SYMBOL(NUM_REF_FRAMES))
+        {
+            ref_frame_idx[AV1_REF(BWDREF_FRAME) - AV1_REF(LAST_FRAME)] = ref;
+            usedFrame[ref] = 1;
+        }
+    }
+    // ALTREF2_FRAME
+    {
+        int8_t ref = find_earliest_backward(usedFrame, shiftedOrderHints);
+        if (ref >= 0 && ref < AV1_SYMBOL(REFS_PER_FRAME) && ref < AV1_SYMBOL(NUM_REF_FRAMES))
+        {
+            ref_frame_idx[AV1_REF(ALTREF2_FRAME) - AV1_REF(LAST_FRAME)] = ref;
+            usedFrame[ref] = 1;
+        }
+    }
+    int64_t Ref_Frame_List[AV1_SYMBOL(REFS_PER_FRAME) - 2];
+    GetRefFrameList(Ref_Frame_List);
+    for (size_t i=0; i<AV1_SYMBOL(REFS_PER_FRAME)-2; i++)
+    {
+        int64_t refFrame = Ref_Frame_List[i];
+        if (ref_frame_idx[refFrame - AV1_REF(LAST_FRAME)] < 0)
+        {
+            int8_t ref = find_latest_forward(usedFrame, shiftedOrderHints);
+            if (ref > 0 && ref < AV1_SYMBOL(REFS_PER_FRAME) && ref < AV1_SYMBOL(NUM_REF_FRAMES))
+            {
+                ref_frame_idx[refFrame - AV1_REF(LAST_FRAME)] = ref;
+                usedFrame[ref] = 1;
+            }
+        }
+    }
+    {
+        int8_t ref = -1;
+        for (size_t i=0; i<AV1_SYMBOL(NUM_REF_FRAMES); i++)
+        {
+            int64_t hint = shiftedOrderHints[i];
+            if (ref < 0 || hint < _curFrameContext.earliestOrderHint)
+            {
+                ref = (int8_t)i;
+                _curFrameContext.earliestOrderHint = hint;
+            }
+        }
+        for (size_t i=0; i<AV1_SYMBOL(NUM_REF_FRAMES); i++)
+        {
+            if (ref_frame_idx[i] < 0)
+            {
+                ref_frame_idx[i] = ref;
+            }
+        }
+    }
+}
+
 bool AV1Deserialize::DeserializeTrailingBitsSyntax(AV1BinaryReader::ptr br, size_t nbBits)
 {
     // See also : 5.3.4. Trailing bits syntax
@@ -1272,6 +1406,74 @@ bool AV1Deserialize::DeserializeTrailingBitsSyntax(AV1BinaryReader::ptr br, size
     } 
 }
 
+int64_t AV1Deserialize::get_relative_dist(int64_t a, int64_t b, AV1SequenceHeaderSyntax::ptr sequenceHeader)
+{
+    int64_t diff = 0;
+    uint64_t m = 0;
+    if (!sequenceHeader->enable_order_hint)
+    {
+        return 0;
+    }
+    diff = a - b;
+    m = (uint64_t)1 << (_curFrameContext.OrderHintBits - 1);
+    diff = (diff & (m-1)) - (diff & m);
+    return diff;
+}
+
+int8_t AV1Deserialize::find_latest_forward(uint8_t usedFrame[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t shiftedOrderHints[AV1_SYMBOL(NUM_REF_FRAMES)])
+{
+    int8_t ref = -1;
+    for (size_t i=0; i<AV1_SYMBOL(NUM_REF_FRAMES); i++)
+    {
+        int64_t hint = shiftedOrderHints[i];
+        if (!usedFrame[i] &&
+            hint < _curFrameContext.curFrameHint &&
+            (ref < 0 || hint >= _curFrameContext.latestOrderHint) 
+        )
+        {
+            ref = (int8_t)i;
+            _curFrameContext.lastOrderHint = hint;
+        }
+    }
+    return ref;
+}
+
+int8_t AV1Deserialize::find_latest_backward(uint8_t usedFrame[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t shiftedOrderHints[AV1_SYMBOL(NUM_REF_FRAMES)])
+{
+    int8_t ref = -1;
+    for (size_t i=0; i<AV1_SYMBOL(NUM_REF_FRAMES); i++)
+    {
+        int64_t hint = shiftedOrderHints[i];
+        if (!usedFrame[i] && 
+            hint >= _curFrameContext.curFrameHint &&
+            (ref < 0 || hint >= _curFrameContext.latestOrderHint)
+        )
+        {
+            ref = (int8_t)i;
+            _curFrameContext.latestOrderHint = hint;
+        }
+    }
+    return ref;
+}
+
+int8_t AV1Deserialize::find_earliest_backward(uint8_t usedFrame[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t shiftedOrderHints[AV1_SYMBOL(NUM_REF_FRAMES)])
+{
+    int8_t ref = -1;
+    for (size_t i=0; i<AV1_SYMBOL(NUM_REF_FRAMES); i++)
+    {
+        int64_t hint = shiftedOrderHints[i];
+        if (!usedFrame[i] &&
+            hint >= _curFrameContext.curFrameHint &&
+            (ref < 0 || hint < _curFrameContext.earliestOrderHint)
+        )
+        {
+            ref = (int8_t)i;
+            _curFrameContext.earliestOrderHint = hint;
+        }
+    }
+    return ref;
+}
+
 void AV1Deserialize::load_grain_params(size_t idx)
 {
     // Hint : load_grain_params(idx) is a function call that indicates that all the syntax elements read in film_grain_params should be
@@ -1284,6 +1486,15 @@ void AV1Deserialize::compute_image_size()
     // See also : 5.9.9. Compute image size function
     _curFrameContext.MiCols = 2 * ((_curFrameContext.FrameWidth + 7) >> 3);
     _curFrameContext.MiRows = 2 * ((_curFrameContext.FrameHeight + 7) >> 3);
+}
+
+void AV1Deserialize::GetRefFrameList(int64_t Ref_Frame_List[AV1_SYMBOL(REFS_PER_FRAME) - 2])
+{
+    Ref_Frame_List[0] = AV1_REF(LAST2_FRAME);
+    Ref_Frame_List[1] = AV1_REF(LAST3_FRAME);
+    Ref_Frame_List[2] = AV1_REF(BWDREF_FRAME);
+    Ref_Frame_List[3] = AV1_REF(ALTREF2_FRAME);
+    Ref_Frame_List[4] = AV1_REF(ALTREF_FRAME);
 }
 
 #undef XXX_U8_RB

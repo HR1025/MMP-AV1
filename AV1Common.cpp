@@ -237,6 +237,10 @@ AV1CdefParamsSyntax::AV1CdefParamsSyntax()
     cdef_bits = 0;
 }
 
+AV1GeneralFrameHeaderOBUSyntax::AV1GeneralFrameHeaderOBUSyntax()
+{
+
+}
 
 } // namespace Codec
 } // namespace Mmp
