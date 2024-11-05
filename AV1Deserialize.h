@@ -28,6 +28,7 @@ public:
     AV1Deserialize();
     ~AV1Deserialize();
 public:
+    bool DeserializeFrameSizeWithRefsSyntax(AV1BinaryReader::ptr br, AV1FrameSizeWithRefsSyntax::ptr frameSizeWithRefs, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader, int8_t ref_frame_idx[AV1_SYMBOL(REFS_PER_FRAME)]);
     bool DeserializeSequenceHeaderSyntax(AV1BinaryReader::ptr br, AV1SequenceHeaderSyntax::ptr sequenceHeader);
     bool DeserializeLoopRestorationParamsSyntax(AV1BinaryReader::ptr br, AV1LoopRestorationParamsSyntax::ptr loopRestorationParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
     bool DeserializeFrameReferenceModeSyntax(AV1BinaryReader::ptr br, AV1FrameReferenceModeSyntax::ptr frameReferenceMode); 

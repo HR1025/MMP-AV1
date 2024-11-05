@@ -242,5 +242,10 @@ AV1GeneralFrameHeaderOBUSyntax::AV1GeneralFrameHeaderOBUSyntax()
 
 }
 
+AV1FrameSizeWithRefsSyntax::AV1FrameSizeWithRefsSyntax()
+{
+    found_ref = 0;
+}
+
 } // namespace Codec
 } // namespace Mmp

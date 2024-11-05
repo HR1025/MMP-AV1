@@ -26,6 +26,57 @@ AV1Deserialize::~AV1Deserialize()
 
 }
 
+bool AV1Deserialize::DeserializeFrameSizeWithRefsSyntax(AV1BinaryReader::ptr br, AV1FrameSizeWithRefsSyntax::ptr frameSizeWithRefs, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader, int8_t ref_frame_idx[AV1_SYMBOL(REFS_PER_FRAME)])
+{
+    // See also : 5.9.7. Frame size with refs syntax
+    try
+    {
+        for (size_t i=0; i<AV1_SYMBOL(REFS_PER_FRAME); i++)
+        {
+            frameSizeWithRefs->found_ref = XXX_U8_RB(1);
+            if (frameSizeWithRefs->found_ref == 1 && (ref_frame_idx[i] >= 0 && ref_frame_idx[i] <= AV1_SYMBOL(NUM_REF_FRAMES)))
+            {
+                _curFrameContext.UpscaledWidth = _referenceFrameContext[(size_t)ref_frame_idx[i]].UpscaledWidth;
+                _curFrameContext.FrameWidth = _curFrameContext.UpscaledWidth;
+                _curFrameContext.FrameHeight = _referenceFrameContext[(size_t)ref_frame_idx[i]].FrameHeight;
+                _curFrameContext.RenderWidth = _referenceFrameContext[(size_t)ref_frame_idx[i]].RenderWidth;
+                _curFrameContext.RenderHeight = _referenceFrameContext[(size_t)ref_frame_idx[i]].RenderHeight;
+                break;
+            }
+        }
+        if (frameSizeWithRefs->found_ref == 1)
+        {
+            frameSizeWithRefs->frame_size = std::make_shared<AV1FrameSizeSyntax>();
+            if (!DeserializeFrameSizeSyntax(br, frameSizeWithRefs->frame_size, uncompressedHeader, sequenceHeader))
+            {
+                AV1_LOG_ERROR << "DeserializeFrameSizeSyntax fail";
+                return false;
+            }
+            frameSizeWithRefs->render_size = std::make_shared<AV1RenderSizeSyntax>();
+            if (!DeserializeRenderSizeSyntax(br, frameSizeWithRefs->render_size))
+            {
+                AV1_LOG_ERROR << "DeserializeRenderSizeSyntax fail";
+                return false;
+            }
+        }
+        else
+        {
+            frameSizeWithRefs->superres_params = std::make_shared<AV1SuperresParamsSyntax>();
+            if (!DeserializeSuperresParamsSyntax(br, frameSizeWithRefs->superres_params, sequenceHeader))
+            {
+                AV1_LOG_ERROR << "DeserializeSuperresParamsSyntax fail";
+                return false;
+            }
+            compute_image_size();
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 bool AV1Deserialize::DeserializeSequenceHeaderSyntax(AV1BinaryReader::ptr br, AV1SequenceHeaderSyntax::ptr sequenceHeader)
 {
     try

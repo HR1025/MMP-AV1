@@ -938,6 +938,20 @@ public:
     AV1UncompressedHeaderSyntax::ptr uncompressed_header;
 };
 
+class AV1FrameSizeWithRefsSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1FrameSizeWithRefsSyntax>;
+public:
+    AV1FrameSizeWithRefsSyntax();
+    ~AV1FrameSizeWithRefsSyntax() = default;
+public:
+    uint8_t found_ref;
+    AV1FrameSizeSyntax::ptr frame_size;
+    AV1RenderSizeSyntax::ptr render_size;
+    AV1SuperresParamsSyntax::ptr superres_params;
+};
+
 /**
  * @sa 7.20. Reference frame update process
  */
