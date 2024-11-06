@@ -593,7 +593,7 @@ bool AV1Deserialize::DeserializeQuantizationParamsSyntax(AV1BinaryReader::ptr br
         {
             quantizationParams->qm_y = XXX_U8_RB(4);
             quantizationParams->qm_u = XXX_U8_RB(4);
-            if (colorConfig->separate_uv_delta_q)
+            if (!colorConfig->separate_uv_delta_q)
             {
                 quantizationParams->qm_v = quantizationParams->qm_u;
             }
