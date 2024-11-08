@@ -80,6 +80,17 @@ uint64_t AV1BinaryReader::f(size_t n)
     return x;
 }
 
+int64_t AV1BinaryReader::su(size_t n)
+{
+    int64_t value = (int64_t)f(n);
+    int64_t signMask = (int64_t)1 << (n - 1);
+    if (value & signMask)
+    {
+        value = value - 2 * signMask;
+    }
+    return value;
+}
+
 uint64_t AV1BinaryReader::uvlc()
 {
     uint32_t leadingZeros = 0;

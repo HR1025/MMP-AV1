@@ -247,5 +247,13 @@ AV1FrameSizeWithRefsSyntax::AV1FrameSizeWithRefsSyntax()
     found_ref = 0;
 }
 
+
+AV1SegmentationParamsSyntax::AV1SegmentationParamsSyntax()
+{
+    segmentation_enabled = 0;
+    segmentation_update_map = 0;
+    segmentation_temporal_update = 0;
+}
+
 } // namespace Codec
 } // namespace Mmp

@@ -25,6 +25,7 @@ public:
     virtual ~AV1BinaryReader();
 public:
     uint64_t f(size_t n);
+    int64_t  su(size_t n);
     uint64_t uvlc();
     uint64_t leb128();
     uint64_t read_delta_q();

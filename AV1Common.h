@@ -819,6 +819,7 @@ public:
     uint64_t refresh_frame_flags;
     uint8_t  frame_size_override_flag;
     uint8_t  allow_intrabc;
+    uint8_t  primary_ref_frame;
 public:
     AV1TemporalPointInfoSyntax::ptr temporal_point_info;
 };
@@ -952,6 +953,22 @@ public:
     AV1SuperresParamsSyntax::ptr superres_params;
 };
 
+class AV1SegmentationParamsSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1SegmentationParamsSyntax>;
+public:
+    AV1SegmentationParamsSyntax();
+    ~AV1SegmentationParamsSyntax() = default;
+public:
+    uint8_t  segmentation_enabled;
+    uint8_t  segmentation_update_map;
+    uint8_t  segmentation_temporal_update;
+    uint8_t  segmentation_update_data;
+    uint8_t  feature_enabled[AV1_SYMBOL(MAX_SEGMENTS) * AV1_SYMBOL(SEG_LVL_MAX)] = {0};
+    int64_t  feature_value[AV1_SYMBOL(MAX_SEGMENTS) * AV1_SYMBOL(SEG_LVL_MAX)] = {0}; 
+};
+
 /**
  * @sa 7.20. Reference frame update process
  */
@@ -1002,6 +1019,13 @@ public:
     uint16_t  TileRows;
     uint16_t  TileColsLog2;
     uint16_t  TileRowsLog2;
+    uint8_t   FeatureEnabled[AV1_SYMBOL(MAX_SEGMENTS)][AV1_SYMBOL(SEG_LVL_MAX)] = {0};
+    uint8_t   Segmentation_Feature_Bits[AV1_SYMBOL(SEG_LVL_MAX)] = {0};
+    uint8_t   Segmentation_Feature_Max[AV1_SYMBOL(SEG_LVL_MAX)] = {0};
+    uint8_t   Segmentation_Feature_Signed[AV1_SYMBOL(SEG_LVL_MAX)] = {0};
+    int64_t   FeatureData[AV1_SYMBOL(MAX_SEGMENTS)][AV1_SYMBOL(SEG_LVL_MAX)] = {0};
+    uint8_t   SegIdPreSkip;
+    uint8_t   LastActiveSegId;
 };
 
 } // namespace Codec

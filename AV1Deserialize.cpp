@@ -11,6 +11,14 @@
 #define XXX_U32_RB(bits)  (uint32_t)br->f(bits)
 #define XXX_U64_RB(bits)  (uint64_t)br->f(bits)
 
+#define  XXX_ABS(x)               ((x) > 0 ? (x) : -(x))
+#define  XXX_CLIP3(x, y, z)       ((z) < ((x)) ? ((x)) : ((z) > (y) ? (y) : (z)))
+#define  XXX_CLIP1(x, BitDepth)   XXX_CLIP3(0, 2 << (BitDepth) - 1, (x))
+#define  XXX_MIN(x, y)            ((x) <= (y) ? (x) : (y))
+#define  XXX_MAX(x, y)            ((x) >= (y) ? (x) : (y))
+#define  XXX_ROUND2(x, n)         (((x) + (2 << ((n)-1)))/(2 << (n)))
+#define  XXX_ROUND2SIGNED(x, n)   ((x) >= 0 ? XXX_ROUND2((x), (n)) : XXX_ROUND2(-(x), (n)))
+
 namespace Mmp
 {
 namespace Codec
@@ -1457,6 +1465,100 @@ bool AV1Deserialize::DeserializeTrailingBitsSyntax(AV1BinaryReader::ptr br, size
     } 
 }
 
+bool AV1Deserialize::DeserializeSegmentationParamsSyntax(AV1BinaryReader::ptr br, AV1SegmentationParamsSyntax::ptr segmentationParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader)
+{
+    const static uint8_t Segmentation_Feature_Bits[AV1_SYMBOL(SEG_LVL_MAX)] = { 8, 6, 6, 6, 6, 3, 0, 0 };
+    const static uint8_t Segmentation_Feature_Signed[AV1_SYMBOL(SEG_LVL_MAX)] = { 1, 1, 1, 1, 1, 0, 0, 0 };
+    const static uint8_t Segmentation_Feature_Max[AV1_SYMBOL(SEG_LVL_MAX)] = {255, AV1_SYMBOL(MAX_LOOP_FILTER), AV1_SYMBOL(MAX_LOOP_FILTER), AV1_SYMBOL(MAX_LOOP_FILTER), AV1_SYMBOL(MAX_LOOP_FILTER), 7, 0, 0};
+    // See also : 5.9.14. Segmentation params syntax
+    try
+    {
+        segmentationParams->segmentation_enabled = XXX_U8_RB(1);
+        if (segmentationParams->segmentation_enabled == 1)
+        {
+            if (uncompressedHeader->primary_ref_frame == AV1_SYMBOL(PRIMARY_REF_NONE))
+            {
+                segmentationParams->segmentation_update_map = 1;
+                segmentationParams->segmentation_temporal_update = 0;
+                segmentationParams->segmentation_update_data = 1;
+            }
+            else
+            {
+                segmentationParams->segmentation_update_map = XXX_U8_RB(1);
+                if (segmentationParams->segmentation_update_map == 1)
+                {
+                    segmentationParams->segmentation_temporal_update = XXX_U8_RB(1);
+                }
+                segmentationParams->segmentation_update_data = XXX_U8_RB(1);
+            }
+        }
+        if (segmentationParams->segmentation_update_data == 1)
+        {
+            for (size_t i=0; i<AV1_SYMBOL(MAX_SEGMENTS); i++)
+            {
+                for (size_t j=0; j<AV1_SYMBOL(SEG_LVL_MAX); j++)
+                {
+                    uint8_t& feature_enabled = segmentationParams->feature_enabled[i*AV1_SYMBOL(SEG_LVL_MAX) + j];
+                    int64_t& feature_value = segmentationParams->feature_value[i*AV1_SYMBOL(SEG_LVL_MAX) + j];
+                    feature_enabled = XXX_U8_RB(1);
+                    _curFrameContext.FeatureEnabled[i][j] = feature_enabled;
+                    int64_t clippedValue = 0;
+                    uint8_t bitsToRead = 0;
+                    uint8_t limit = 0;
+                    if (feature_enabled == 1)
+                    {
+                        bitsToRead = _curFrameContext.Segmentation_Feature_Bits[j];
+                        limit = _curFrameContext.Segmentation_Feature_Max[j];
+                        if (_curFrameContext.Segmentation_Feature_Signed[j] == 1)
+                        {
+                            feature_value = br->su(1 + bitsToRead);
+                            clippedValue = XXX_CLIP3(-limit, limit, feature_value);
+                        }
+                        else
+                        {
+                            feature_value = br->su(bitsToRead);
+                            clippedValue = XXX_CLIP3(0, limit, feature_value);
+                        }
+                    }
+                    _curFrameContext.FeatureData[i][j] = clippedValue;
+                }
+            }
+        }
+        else
+        {
+            for (size_t i=0; i<AV1_SYMBOL(MAX_SEGMENTS); i++)
+            {
+                for (size_t j=0; j<AV1_SYMBOL(SEG_LVL_MAX); j++)
+                {
+                    _curFrameContext.FeatureEnabled[i][j] = 0;
+                    _curFrameContext.FeatureData[i][j] = 0;
+                }
+            }
+        }
+        _curFrameContext.SegIdPreSkip = 0;
+        _curFrameContext.LastActiveSegId = 0;
+        for (size_t i=0; i<AV1_SYMBOL(MAX_SEGMENTS); i++)
+        {
+            for (size_t j=0; j<AV1_SYMBOL(SEG_LVL_MAX); j++)
+            {
+                if (_curFrameContext.FeatureEnabled[i][j])
+                {
+                    _curFrameContext.LastActiveSegId = 1;
+                    if (j >= AV1_SYMBOL(SEG_LVL_REF_FRAME))
+                    {
+                        _curFrameContext.SegIdPreSkip = 1;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
 int64_t AV1Deserialize::get_relative_dist(int64_t a, int64_t b, AV1SequenceHeaderSyntax::ptr sequenceHeader)
 {
     int64_t diff = 0;
@@ -1552,6 +1654,14 @@ void AV1Deserialize::GetRefFrameList(int64_t Ref_Frame_List[AV1_SYMBOL(REFS_PER_
 #undef XXX_U16_RB
 #undef XXX_U32_RB
 #undef XXX_U64_RB
+
+#undef  XXX_ABS
+#undef  XXX_CLIP3
+#undef  XXX_CLIP1
+#undef  XXX_MIN
+#undef  XXX_MAX
+#undef  XXX_ROUND2
+#undef  XXX_ROUND2SIGNED
 
 } // namespace Codec
 } // namespace Mmp
