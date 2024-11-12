@@ -37,7 +37,7 @@ public:
     bool DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU);
     bool DeserializeCdefParamsSyntax(AV1BinaryReader::ptr br, AV1CdefParamsSyntax::ptr cdefParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
     bool DeserializeInterpolationFilterSyntax(AV1BinaryReader::ptr br, AV1InterpolationFilterSyntax::ptr interpolationFilter);
-    bool DeserializeQuantizerIndexDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters);
+    bool DeserializeQuantizerIndexDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters, AV1QuantizationParamsSyntax::ptr quantizationParams);
     bool DeserializeQuantizationParamsSyntax(AV1BinaryReader::ptr br, AV1QuantizationParamsSyntax::ptr quantizationParams, AV1ColorConfigSyntax::ptr colorConfig);
     bool DeserializeRenderSizeSyntax(AV1BinaryReader::ptr br, AV1RenderSizeSyntax::ptr renderSize);
     bool DeserializeTemporalDelimiterObuSyntax(AV1BinaryReader::ptr br, AV1TemporalDelimiterObuSyntax::ptr temporalDelimiterObu);
@@ -61,6 +61,8 @@ public:
     bool DeserializeFilmGrainParamsSyntax(AV1BinaryReader::ptr br, AV1FilmGrainParamsSyntax::ptr filmGrainParams, AV1SequenceHeaderSyntax::ptr sequenceHeader, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
     bool DeserializeTrailingBitsSyntax(AV1BinaryReader::ptr br, size_t nbBits);
     bool DeserializeSegmentationParamsSyntax(AV1BinaryReader::ptr br, AV1SegmentationParamsSyntax::ptr segmentationParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
+    bool DeserializeAV1LoopFilterDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1LoopFilterDeltaParametersSyntax::ptr loopFilterDeltaParameters, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
+    bool DeserializeAV1LoopFilterParamsSyntax(AV1BinaryReader::ptr br, AV1LoopFilterParamsSyntax::ptr loopFilterParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
 public:
     void SetFrameRefsProcess(int8_t ref_frame_idx[AV1_SYMBOL(REFS_PER_FRAME)], uint8_t usedFrame[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t shiftedOrderHints[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t RefOrderHint[AV1_SYMBOL(NUM_REF_FRAMES)],  uint8_t last_frame_idx, uint8_t gold_frame_idx, AV1SequenceHeaderSyntax::ptr sequenceHeader);
 public:

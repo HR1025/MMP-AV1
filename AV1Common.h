@@ -969,6 +969,37 @@ public:
     int64_t  feature_value[AV1_SYMBOL(MAX_SEGMENTS) * AV1_SYMBOL(SEG_LVL_MAX)] = {0}; 
 };
 
+class AV1LoopFilterDeltaParametersSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1LoopFilterDeltaParametersSyntax>;
+public:
+    AV1LoopFilterDeltaParametersSyntax();
+    ~AV1LoopFilterDeltaParametersSyntax() = default;
+public:
+    uint8_t  delta_lf_present;
+    uint8_t  delta_lf_res;
+    uint8_t  delta_lf_multi;
+};
+
+class AV1LoopFilterParamsSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1LoopFilterParamsSyntax>;
+public:
+    AV1LoopFilterParamsSyntax();
+    ~AV1LoopFilterParamsSyntax() = default;
+public:
+    int8_t   loop_filter_level[AV1_SYMBOL(TOTAL_REFS_PER_FRAME)] = {0};
+    int8_t   loop_filter_ref_deltas[AV1_SYMBOL(TOTAL_REFS_PER_FRAME)] = {0};
+    uint8_t  loop_filter_sharpness;
+    uint8_t  loop_filter_delta_enabled;
+    uint8_t  loop_filter_delta_update;
+    uint32_t update_ref_delta[AV1_SYMBOL(TOTAL_REFS_PER_FRAME)] = {0};
+    uint8_t  update_mode_delta[2] = {0};
+    uint32_t loop_filter_mode_deltas[2] = {0};
+};
+
 /**
  * @sa 7.20. Reference frame update process
  */

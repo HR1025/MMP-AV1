@@ -255,5 +255,19 @@ AV1SegmentationParamsSyntax::AV1SegmentationParamsSyntax()
     segmentation_temporal_update = 0;
 }
 
+AV1LoopFilterDeltaParametersSyntax::AV1LoopFilterDeltaParametersSyntax()
+{
+    delta_lf_present = 0;
+    delta_lf_res = 0;
+    delta_lf_multi = 0;
+}
+
+AV1LoopFilterParamsSyntax::AV1LoopFilterParamsSyntax()
+{
+    loop_filter_sharpness = 0;
+    loop_filter_delta_enabled = 0;
+    loop_filter_delta_update = 0;
+}
+
 } // namespace Codec
 } // namespace Mmp

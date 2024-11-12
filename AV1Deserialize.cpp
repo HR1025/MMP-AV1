@@ -542,14 +542,21 @@ bool AV1Deserialize::DeserializeInterpolationFilterSyntax(AV1BinaryReader::ptr b
     }
 }
 
-bool AV1Deserialize::DeserializeQuantizerIndexDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters)
+bool AV1Deserialize::DeserializeQuantizerIndexDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters, AV1QuantizationParamsSyntax::ptr quantizationParams)
 {
     // See also : 5.9.17. Quantizer index delta parameters syntax
     try
     {
         quantizerIndexDeltaParameters->delta_q_res = 0;
         quantizerIndexDeltaParameters->delta_q_present = 0;
-        // TODO
+        if (quantizationParams->base_q_idx > 0)
+        {
+            quantizerIndexDeltaParameters->delta_q_present = XXX_U8_RB(1);
+        }
+        if (quantizerIndexDeltaParameters->delta_q_present)
+        {
+            quantizerIndexDeltaParameters->delta_q_res = XXX_U8_RB(2);
+        }
         assert(false);
         return true;
     }
@@ -1547,6 +1554,100 @@ bool AV1Deserialize::DeserializeSegmentationParamsSyntax(AV1BinaryReader::ptr br
                     if (j >= AV1_SYMBOL(SEG_LVL_REF_FRAME))
                     {
                         _curFrameContext.SegIdPreSkip = 1;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
+bool AV1Deserialize::DeserializeAV1LoopFilterDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1LoopFilterDeltaParametersSyntax::ptr loopFilterDeltaParameters, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters, AV1UncompressedHeaderSyntax::ptr uncompressedHeader)
+{
+    // See also : 5.9.18. Loop filter delta parameters syntax
+    try
+    {
+        loopFilterDeltaParameters->delta_lf_present = 0;
+        loopFilterDeltaParameters->delta_lf_res = 0;
+        loopFilterDeltaParameters->delta_lf_multi = 0;
+        if (loopFilterDeltaParameters->delta_lf_present)
+        {
+            if (!uncompressedHeader->allow_intrabc)
+            {
+                loopFilterDeltaParameters->delta_lf_present = XXX_U8_RB(1);
+            }
+            if (loopFilterDeltaParameters->delta_lf_present)
+            {
+                loopFilterDeltaParameters->delta_lf_res = XXX_U8_RB(2);
+                loopFilterDeltaParameters->delta_lf_multi = XXX_U8_RB(1);
+            }
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
+bool AV1Deserialize::DeserializeAV1LoopFilterParamsSyntax(AV1BinaryReader::ptr br, AV1LoopFilterParamsSyntax::ptr loopFilterParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader)
+{
+    // See also : 5.9.11. Loop filter params syntax
+    try
+    {
+        if (_curFrameContext.CodedLossless || uncompressedHeader->allow_intrabc)
+        {
+            loopFilterParams->loop_filter_level[0] = 0;
+            loopFilterParams->loop_filter_level[1] = 0;
+            loopFilterParams->loop_filter_ref_deltas[AV1_REF(INTRA_FRAME)] = 1;
+            loopFilterParams->loop_filter_ref_deltas[AV1_REF(LAST_FRAME)] = 0;
+            loopFilterParams->loop_filter_ref_deltas[AV1_REF(LAST2_FRAME)] = 0;
+            loopFilterParams->loop_filter_ref_deltas[AV1_REF(LAST3_FRAME)] = 0;
+            loopFilterParams->loop_filter_ref_deltas[AV1_REF(BWDREF_FRAME)] = 0;
+            loopFilterParams->loop_filter_ref_deltas[AV1_REF(GOLDEN_FRAME)] = -1;
+            loopFilterParams->loop_filter_ref_deltas[AV1_REF(ALTREF_FRAME)] = -1;
+            loopFilterParams->loop_filter_ref_deltas[AV1_REF(ALTREF2_FRAME)] = -1;
+            for (size_t i=0; i<2; i++)
+            {
+                loopFilterParams->loop_filter_mode_deltas[i] = 0;
+            }
+            return true;
+        }
+        loopFilterParams->loop_filter_level[0] = XXX_U8_RB(6);
+        loopFilterParams->loop_filter_level[1] = XXX_U8_RB(6);
+        if (_curFrameContext.NumPlanes > 1)
+        {
+            if (loopFilterParams->loop_filter_level[0] || loopFilterParams->loop_filter_level[1])
+            {
+                loopFilterParams->loop_filter_level[2] = XXX_U8_RB(6);
+                loopFilterParams->loop_filter_level[3] = XXX_U8_RB(6);
+            }
+        }
+        loopFilterParams->loop_filter_sharpness = XXX_U8_RB(3);
+        loopFilterParams->loop_filter_delta_enabled = XXX_U8_RB(1);
+        if (loopFilterParams->loop_filter_delta_enabled == 1)
+        {
+            loopFilterParams->loop_filter_delta_update = XXX_U8_RB(1);
+            if (loopFilterParams->loop_filter_delta_update == 1)
+            {
+                for (size_t i=0; i<AV1_SYMBOL(TOTAL_REFS_PER_FRAME); i++)
+                {
+                    loopFilterParams->update_ref_delta[i] = XXX_U8_RB(1);
+                    if (loopFilterParams->update_ref_delta[i] == 1)
+                    {
+                        loopFilterParams->loop_filter_ref_deltas[i] = (int8_t)br->su(1+6);
+                    }
+                }
+                for (size_t i=0; i<2; i++)
+                {
+                    loopFilterParams->update_mode_delta[i] = XXX_U8_RB(1);
+                    if (loopFilterParams->update_mode_delta[i] == 1)
+                    {
+                        loopFilterParams->loop_filter_mode_deltas[i] = (int8_t)br->su(1 + 6);
                     }
                 }
             }
