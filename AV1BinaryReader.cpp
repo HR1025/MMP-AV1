@@ -56,6 +56,17 @@ static uint8_t kRightAndLookUp[8] = {0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE, 0
 
 #define MMP_AV1_I_PRED_OPERATION(bits, value)       MMP_AV1_U_PRED_OPERATION(bits, value)
 
+static int64_t FllorLog2(uint64_t x)
+{
+    int64_t s = 0;
+    while (x != 0)
+    {
+        x = x >> 1;
+        s ++;
+    }
+    return s - 1;
+}
+
 AV1BinaryReader::AV1BinaryReader(AbstractAV1ByteReader::ptr reader)
 {
     _curBitPos = 8;
@@ -89,6 +100,30 @@ int64_t AV1BinaryReader::su(size_t n)
         value = value - 2 * signMask;
     }
     return value;
+}
+
+uint64_t AV1BinaryReader::le(size_t n)
+{
+    uint64_t t = 0;
+    for (size_t i=0; i<n; i++)
+    {
+        uint64_t byte = f(8);
+        t += (byte << (i*8));
+    }
+    return t;
+}
+
+uint64_t AV1BinaryReader::ns(size_t n)
+{
+    uint64_t w = FllorLog2(n) + 1;
+    uint64_t m = (1 << w) - n;
+    uint64_t v = f((size_t)(w - 1));
+    if (v < m)
+    {
+        return v;
+    }
+    uint64_t extra_bit = f(1);
+    return (v << 1) - m + extra_bit;
 }
 
 uint64_t AV1BinaryReader::uvlc()
@@ -142,6 +177,11 @@ void AV1BinaryReader::byte_alignment()
     {
         zero_bit = (uint8_t)f(1);
     }
+}
+
+size_t AV1BinaryReader::get_position()
+{
+    return _reader->Tell() + _curBitPos;
 }
 
 bool AV1BinaryReader::ReadBytes(size_t byte, uint8_t* value)

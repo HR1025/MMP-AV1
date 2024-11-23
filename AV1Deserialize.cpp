@@ -308,7 +308,7 @@ bool AV1Deserialize::DeserializeLoopRestorationParamsSyntax(AV1BinaryReader::ptr
             if (_curFrameContext.FrameRestorationType[i] != (uint8_t)AV1FrameRestorationType::AV1_RESTORE_NONE)
             {
                 _curFrameContext.UsesLr = 1;
-                if (i>0)
+                if (i > 0)
                 {
                     _curFrameContext.usesChromaLr = 1;
                 }
@@ -429,12 +429,14 @@ bool AV1Deserialize::DeserializeGeneralFrameHeaderOBUSyntax(AV1BinaryReader::ptr
     }
 }
 
-bool AV1Deserialize::DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU)
+bool AV1Deserialize::DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU, size_t sz)
 {
     // See also : 5.11.1. General tile group OBU syntax
     try
     {
+        size_t startBitPos = 0, endBitPos = 0, headerBytes = 0;
         _curFrameContext.NumTiles = _curFrameContext.TileCols * _curFrameContext.TileRows;
+        startBitPos = br->get_position();
         generalTileGroupOBU->tile_start_and_end_present_flag = 0;
         if (_curFrameContext.NumTiles > 1)
         {
@@ -447,11 +449,31 @@ bool AV1Deserialize::DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr b
         }
         else
         {
-            size_t tileBits = _curFrameContext.TileColsLog2 + _curFrameContext.TileRowsLog2;
-            generalTileGroupOBU->tg_start = XXX_U32_RB(tileBits);
-            generalTileGroupOBU->tg_end = XXX_U32_RB(tileBits);
+            uint64_t tileBits = _curFrameContext.TileColsLog2 + _curFrameContext.TileRowsLog2;
+            generalTileGroupOBU->tg_start = XXX_U64_RB((size_t)tileBits);
+            generalTileGroupOBU->tg_end = XXX_U64_RB((size_t)tileBits);
         }
         br->byte_alignment();
+        endBitPos = br->get_position();
+        headerBytes = (endBitPos - startBitPos) / 8;
+        sz -= headerBytes;
+        for (uint64_t TileNum = generalTileGroupOBU->tg_start; TileNum <= generalTileGroupOBU->tg_end; TileNum++)
+        {
+            uint64_t tileRow = TileNum / _curFrameContext.TileCols;
+            uint64_t tileCol = TileNum % _curFrameContext.TileCols;
+            uint64_t tileSize = 0;
+            bool lastTile = (TileNum == generalTileGroupOBU->tg_end);
+            if (lastTile)
+            {
+                tileSize = sz;
+            }
+            else
+            {
+                // TODO
+                tileSize = (size_t)generalTileGroupOBU->tile_size_minus_1 + 1;
+                sz -= tileSize + (size_t)_curFrameContext.TileSizeBytes;
+            }
+        }
         return true;
     }
     catch (...)
@@ -1129,6 +1151,11 @@ bool AV1Deserialize::DeserializeMetadataTimecodeSyntax(AV1BinaryReader::ptr br, 
                 }
             }
         }
+        metadataTimecode->time_offset_length = XXX_U8_RB(5);
+        if (metadataTimecode->time_offset_length > 0)
+        {
+            metadataTimecode->time_offset_value = XXX_U64_RB(metadataTimecode->time_offset_length);
+        }
         return true;
     }
     catch (...)
@@ -1143,11 +1170,12 @@ bool AV1Deserialize::DeserializeUncompressedHeaderSyntax(AV1BinaryReader::ptr br
     try
     {
         uint64_t idLen = 0;
-        uint64_t allFrames = ((uint64_t)1 << AV1_SYMBOL(NUM_REF_FRAMES)) - 1;
+        uint64_t allFrames = 0;
         if (sequenceHeader->frame_id_numbers_present_flag)
         {
             idLen = (sequenceHeader->additional_frame_id_length_minus_1 + sequenceHeader->delta_frame_id_length_minus_2 + 3);
         }
+        allFrames = ((uint64_t)1 << AV1_SYMBOL(NUM_REF_FRAMES)) - 1;
         if (sequenceHeader->reduced_still_picture_header)
         {
             uncompressedHeader->show_existing_frame = 0;
@@ -1182,8 +1210,56 @@ bool AV1Deserialize::DeserializeUncompressedHeaderSyntax(AV1BinaryReader::ptr br
                 {
                     uncompressedHeader->refresh_frame_flags = allFrames;
                 }
-
+                if (sequenceHeader->film_grain_params_present)
+                {
+                    uncompressedHeader->load_grain_params = std::make_shared<AV1FilmGrainParamsSyntax>();
+                    // TODO
+                }
+                return true;
             }
+            uncompressedHeader->frame_type = XXX_U8_RB(2);
+            _curFrameContext.FrameIsIntra = (uncompressedHeader->frame_type == (uint8_t)AV1FrameType::INTRA_ONLY_FRAME || uncompressedHeader->frame_type == (uint8_t)AV1FrameType::KEY_FRAME);
+            uncompressedHeader->show_frame = XXX_U8_RB(1);
+            if (uncompressedHeader->show_frame && sequenceHeader->decoder_model_info_present_flag && (sequenceHeader->timing_info && !sequenceHeader->timing_info->equal_picture_interval))
+            {
+                uncompressedHeader->temporal_point_info = std::make_shared<AV1TemporalPointInfoSyntax>();
+                if (!DeserializeTemporalPointInfoSyntax(br, uncompressedHeader->temporal_point_info, sequenceHeader->decoder_model_info))
+                {
+                    AV1_LOG_ERROR << "DeserializeTemporalPointInfoSyntax fail";
+                    return false;
+                }
+            }
+            if (uncompressedHeader->show_frame)
+            {
+                uncompressedHeader->showable_frame = (uncompressedHeader->frame_type != (uint8_t)AV1FrameType::KEY_FRAME);
+            }
+            else
+            {
+                uncompressedHeader->showable_frame = XXX_U8_RB(1);
+            }
+            if (uncompressedHeader->frame_type == (uint8_t)AV1FrameType::SWITCH_FRAME || 
+                (uncompressedHeader->frame_type == (uint8_t)AV1FrameType::KEY_FRAME && uncompressedHeader->show_frame)
+            )
+            {
+                uncompressedHeader->error_resilient_mode = 1;
+            }
+            else
+            {
+                uncompressedHeader->error_resilient_mode = XXX_U8_RB(1);
+            }
+            if (uncompressedHeader->frame_type == (uint8_t)AV1FrameType::KEY_FRAME && uncompressedHeader->show_frame)
+            {
+                for (size_t i=0; i<AV1_SYMBOL(NUM_REF_FRAMES); i++)
+                {
+                    _curFrameContext.RefValid[i] = 0;
+                    _curFrameContext.RefOrderHint[i] = 0;
+                }
+                for (size_t i=0; i<AV1_SYMBOL(REFS_PER_FRAME); i++)
+                {
+                    _curFrameContext.OrderHints[AV1_REF(LAST_FRAME) + i] = 0;
+                }
+            }
+            // uncompressedHeader->
         }
         return true;
     }
@@ -1660,6 +1736,229 @@ bool AV1Deserialize::DeserializeAV1LoopFilterParamsSyntax(AV1BinaryReader::ptr b
     } 
 }
 
+bool AV1Deserialize::DeserializeAV1PaddingOBUSyntaxSyntax(AV1BinaryReader::ptr br, AV1PaddingOBUSyntax::ptr paddingOBU, size_t obu_padding_length)
+{
+    // See also : 5.7. Padding OBU syntax
+    try
+    {
+        paddingOBU->obu_padding_byte.resize(obu_padding_length);
+        for (size_t i=0; i<obu_padding_length; i++)
+        {
+            paddingOBU->obu_padding_byte[i] = XXX_U8_RB(8);
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
+bool AV1Deserialize::DeserializeAV1GeneralMetadataOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralMetadataOBUSyntax::ptr generalMetadataOBU)
+{
+    // See also : 5.8.1. General metadata OBU syntax
+    try
+    {
+        generalMetadataOBU->metadata_type = (uint32_t)br->leb128();
+        if (generalMetadataOBU->metadata_type == (uint8_t)AV1MetadataType::METADATA_TYPE_ITUT_T35)
+        {
+            generalMetadataOBU->metadata_itut_t35 = std::make_shared<AV1MetadataITUT_T35Syntax>();
+            if (DeserializeAV1MetadataITUT_T35Syntax(br, generalMetadataOBU->metadata_itut_t35))
+            {
+                AV1_LOG_ERROR << "DeserializeAV1MetadataITUT_T35Syntax fail";
+                assert(false);
+                return false;   
+            }
+        }
+        else if (generalMetadataOBU->metadata_type == (uint8_t)AV1MetadataType::METADATA_TYPE_HDR_CLL)
+        {
+            generalMetadataOBU->metadata_hdr_cll = std::make_shared<AV1MetadataHighDynamicRangeContentLightLevelSyntax>();
+            if (DeserializeMetadataHighDynamicRangeContentLightLevelSyntax(br, generalMetadataOBU->metadata_hdr_cll))
+            {
+                AV1_LOG_ERROR << "DeserializeMetadataHighDynamicRangeContentLightLevelSyntax fail";
+                assert(false);
+                return false;   
+            }
+        }
+        else if (generalMetadataOBU->metadata_type == (uint8_t)AV1MetadataType::METADATA_TYPE_HDR_MDCV)
+        {
+            generalMetadataOBU->metadata_hdr_mdcv = std::make_shared<AV1MetadataHighDynamicRangeMasteringDisplayColorVolumeSyntax>();
+            if (!DeserializeMetadataHighDynamicRangeMasteringDisplayColorVolumeSyntax(br, generalMetadataOBU->metadata_hdr_mdcv))
+            {
+                AV1_LOG_ERROR << "DeserializeMetadataHighDynamicRangeMasteringDisplayColorVolumeSyntax fail";
+                assert(false);
+                return false;   
+            }
+        }
+        else if (generalMetadataOBU->metadata_type == (uint8_t)AV1MetadataType::METADATA_TYPE_SCALABILITY)
+        {
+            generalMetadataOBU->metadata_scalability = std::make_shared<AV1MetadataScalabilitySyntax>();
+            if (!DeserializeMetadataScalabilitySyntax(br, generalMetadataOBU->metadata_scalability))
+            {
+                AV1_LOG_ERROR << "DeserializeMetadataScalabilitySyntax fail";
+                assert(false);
+                return false;
+            }   
+        }
+        else if (generalMetadataOBU->metadata_type == (uint8_t)AV1MetadataType::METADATA_TYPE_TIMECODE)
+        {
+            generalMetadataOBU->metadata_timecode = std::make_shared<AV1MetadataTimecodeSyntax>();
+            if (!DeserializeMetadataTimecodeSyntax(br, generalMetadataOBU->metadata_timecode))
+            {
+                AV1_LOG_ERROR << "DeserializeMetadataTimecodeSyntax fail";
+                assert(false);
+                return false;
+            }
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
+bool AV1Deserialize::DeserializeAV1MetadataITUT_T35Syntax(AV1BinaryReader::ptr br, AV1MetadataITUT_T35Syntax::ptr metadataITUT_T35Syntax)
+{
+    // TODO
+    try
+    {
+        return false;
+    }
+    catch (...)
+    {
+        return false;
+    } 
+}
+
+bool AV1Deserialize::DeserializeAV1TileInfoSyntax(AV1BinaryReader::ptr br, AV1TileInfoSyntax::ptr tileInfo, AV1SequenceHeaderSyntax::ptr sequenceHeader)
+{
+    // See also : 5.9.15. Tile info syntax
+    try
+    {
+        uint64_t sbCols = sequenceHeader->use_128x128_superblock ? ((_curFrameContext.MiCols + 31) >> 5) : ((_curFrameContext.MiCols + 15) >> 4);
+        uint64_t sbRows = sequenceHeader->use_128x128_superblock ? ((_curFrameContext.MiRows + 31) >> 5) : ((_curFrameContext.MiRows + 15) >> 4);
+        uint8_t  sbShift = sequenceHeader->use_128x128_superblock ? 5 : 4;
+        uint8_t  sbSize = sbShift + 2;
+        uint64_t maxTileWidthSb = AV1_SYMBOL(MAX_TILE_WIDTH) >> sbSize;
+        uint64_t maxTileAreaSb = AV1_SYMBOL(MAX_TILE_AREA) >> (2 * sbSize);
+        uint64_t minLog2TileCols = tile_log2(maxTileWidthSb, (uint64_t)sbCols);
+        uint64_t maxLog2TileCols = tile_log2((uint64_t)1, (uint64_t)XXX_MIN(sbCols, AV1_SYMBOL(MAX_TILE_COLS)));
+        uint64_t maxLog2TileRows = tile_log2((uint64_t)1, (uint64_t)XXX_MIN(sbRows, AV1_SYMBOL(MAX_TILE_ROWS)));
+        uint64_t minLog2Tiles = XXX_MAX(minLog2TileCols, tile_log2(maxTileAreaSb, sbRows * sbCols));
+        tileInfo->uniform_tile_spacing_flag = XXX_U8_RB(1);
+        uint64_t i = 0;
+        if (tileInfo->uniform_tile_spacing_flag)
+        {
+            uint64_t TileColsLog2 = minLog2TileCols;
+            while (TileColsLog2 < maxLog2TileCols)
+            {
+                uint8_t increment_tile_cols_log2 = XXX_U8_RB(1);
+                tileInfo->increment_tile_cols_log2.push_back(increment_tile_cols_log2);
+                if (increment_tile_cols_log2 == 1)
+                {
+                    TileColsLog2++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            uint64_t tileWidthSb = (sbCols + ((uint64_t)1 << (uint64_t)TileColsLog2) - 1) >> TileColsLog2;
+            i = 0;
+            for (uint64_t startSb = 0; startSb < sbCols; startSb += tileWidthSb)
+            {
+                _curFrameContext.MiColStarts[i] = startSb << sbShift;
+                i += 1;
+            }
+            _curFrameContext.MiColStarts[i] = _curFrameContext.MiCols;
+            _curFrameContext.TileCols = i;
+
+            uint64_t minLog2TileRows = XXX_MAX(minLog2Tiles - _curFrameContext.TileColsLog2, (uint64_t)0);
+            _curFrameContext.TileRowsLog2 = minLog2TileRows;
+            while (_curFrameContext.TileRowsLog2 < maxLog2TileRows)
+            {
+                uint8_t increment_tile_rows_log2 = XXX_U8_RB(1);
+                tileInfo->increment_tile_rows_log2.push_back(increment_tile_rows_log2);
+                if (increment_tile_rows_log2 == 1)
+                {
+                    _curFrameContext.TileRowsLog2++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            uint64_t tileHeightSb = (sbRows + ((uint64_t)1 << (uint64_t)_curFrameContext.TileRowsLog2) - 1) >> _curFrameContext.TileRowsLog2;
+            i = 0;
+            for (uint64_t startSb = 0; startSb < sbRows; startSb += tileHeightSb)
+            {
+                _curFrameContext.MiRowStarts[i] = startSb << sbShift;
+                i += 1;
+            }
+            _curFrameContext.MiRowStarts[i] = _curFrameContext.MiRows;
+            _curFrameContext.TileRows = i;
+        }
+        else
+        {
+            uint64_t widestTileSb = 0;
+            uint64_t startSb = 0;
+            for (i = 0; startSb < sbCols; i++)
+            {
+                _curFrameContext.MiColStarts[i] = startSb << sbShift;
+                uint64_t maxWidth = XXX_MIN(sbCols - startSb, maxTileWidthSb);
+                uint64_t width_in_sbs_minus_1 = br->ns((size_t)maxWidth);
+                tileInfo->width_in_sbs_minus_1.push_back(width_in_sbs_minus_1);
+                uint64_t sizeSb = width_in_sbs_minus_1 + 1;
+                widestTileSb = XXX_MAX(sizeSb, widestTileSb);
+                startSb += sizeSb;
+            }
+            _curFrameContext.MiColStarts[i] = _curFrameContext.MiCols;
+            _curFrameContext.TileCols = i;
+            _curFrameContext.TileColsLog2 = tile_log2(1, _curFrameContext.TileCols);
+
+            if (minLog2Tiles > 0)
+            {
+                maxTileAreaSb = (sbRows * sbCols) >> (minLog2Tiles + 1);
+            }
+            else
+            {
+                maxTileAreaSb = sbRows * sbCols;
+            }
+            uint64_t maxTileHeightSb = XXX_MAX(maxTileAreaSb / widestTileSb, 1);
+
+            startSb = 0;
+            for (uint64_t i=0; startSb < sbRows; i++)
+            {
+                _curFrameContext.MiRowStarts[i] = startSb << sbShift;
+                uint64_t maxHeight = XXX_MIN(sbRows - startSb, maxTileHeightSb);
+                uint64_t height_in_sbs_minus_1 = br->ns((size_t)maxHeight);
+                tileInfo->height_in_sbs_minus_1.push_back(height_in_sbs_minus_1);
+                uint64_t sizeSb = height_in_sbs_minus_1 + 1;
+                startSb += sizeSb;
+            }
+            _curFrameContext.MiRowStarts[i] = _curFrameContext.MiRows;
+            _curFrameContext.TileRows = i;
+            _curFrameContext.TileRowsLog2 = tile_log2((uint64_t)1, _curFrameContext.TileRows);
+        }
+        if (_curFrameContext.TileColsLog2 > 0 || _curFrameContext.TileRowsLog2 > 0)
+        {
+            tileInfo->context_update_tile_id = XXX_U64_RB((size_t)(_curFrameContext.TileRowsLog2 + _curFrameContext.TileColsLog2));
+            tileInfo->tile_size_bytes_minus_1 = XXX_U8_RB(2);
+            _curFrameContext.TileSizeBytes = tileInfo->tile_size_bytes_minus_1 + 1;
+        }
+        else
+        {
+            tileInfo->context_update_tile_id = 0;
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 int64_t AV1Deserialize::get_relative_dist(int64_t a, int64_t b, AV1SequenceHeaderSyntax::ptr sequenceHeader)
 {
     int64_t diff = 0;
@@ -1672,7 +1971,7 @@ int64_t AV1Deserialize::get_relative_dist(int64_t a, int64_t b, AV1SequenceHeade
     m = (uint64_t)1 << (_curFrameContext.OrderHintBits - 1);
     diff = (diff & (m-1)) - (diff & m);
     return diff;
-}
+} 
 
 int8_t AV1Deserialize::find_latest_forward(uint8_t usedFrame[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t shiftedOrderHints[AV1_SYMBOL(NUM_REF_FRAMES)])
 {
@@ -1749,6 +2048,16 @@ void AV1Deserialize::GetRefFrameList(int64_t Ref_Frame_List[AV1_SYMBOL(REFS_PER_
     Ref_Frame_List[2] = AV1_REF(BWDREF_FRAME);
     Ref_Frame_List[3] = AV1_REF(ALTREF2_FRAME);
     Ref_Frame_List[4] = AV1_REF(ALTREF_FRAME);
+}
+
+uint64_t tile_log2(uint64_t blkSize, uint64_t target)
+{
+    uint64_t k = 0;
+    for(k=0; (blkSize << k) < target; k++)
+    {
+
+    }
+    return k;
 }
 
 #undef XXX_U8_RB

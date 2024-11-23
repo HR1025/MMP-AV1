@@ -405,6 +405,18 @@ enum class AV1TxMode
     AV1_TX_MODE_SELECT = 2
 };
 
+/**
+ * @sa 6.7.1. General metadata OBU semantics
+ */
+enum class AV1MetadataType
+{
+    METADATA_TYPE_HDR_CLL = 1,
+    METADATA_TYPE_HDR_MDCV = 2,
+    METADATA_TYPE_SCALABILITY = 3,
+    METADATA_TYPE_ITUT_T35 = 4,
+    METADATA_TYPE_TIMECODE = 5
+};
+
 class AV1ColorConfigSyntax
 {
 public:
@@ -480,7 +492,7 @@ public:
 class AV1PaddingOBUSyntax
 {
 public:
-    using ptr = std::shared_ptr<AV1OperatingParametersInfoSyntax>;
+    using ptr = std::shared_ptr<AV1PaddingOBUSyntax>;
 public:
     AV1PaddingOBUSyntax();
     ~AV1PaddingOBUSyntax();
@@ -691,9 +703,14 @@ public:
     using ptr = std::shared_ptr<AV1GeneralMetadataOBUSyntax>;
 public:
     AV1GeneralMetadataOBUSyntax();
-    ~AV1GeneralMetadataOBUSyntax();
+    ~AV1GeneralMetadataOBUSyntax() = default;
 public:
     uint32_t metadata_type;
+    AV1MetadataITUT_T35Syntax::ptr metadata_itut_t35;
+    AV1MetadataHighDynamicRangeContentLightLevelSyntax::ptr metadata_hdr_cll;
+    AV1MetadataHighDynamicRangeMasteringDisplayColorVolumeSyntax::ptr metadata_hdr_mdcv;
+    AV1MetadataScalabilitySyntax::ptr metadata_scalability;
+    AV1MetadataTimecodeSyntax::ptr metadata_timecode;
 };
 
 class AV1SuperresParamsSyntax
@@ -802,50 +819,6 @@ public:
     uint8_t  qm_v;
 };
 
-class AV1UncompressedHeaderSyntax
-{
-public:
-    using ptr = std::shared_ptr<AV1UncompressedHeaderSyntax>;
-public:
-    AV1UncompressedHeaderSyntax();
-    ~AV1UncompressedHeaderSyntax() = default;
-public:
-    uint8_t  show_existing_frame;
-    uint8_t  frame_type;
-    uint8_t  show_frame;
-    uint8_t  showable_frame;
-    uint8_t  frame_to_show_map_idx;
-    uint64_t display_frame_id;
-    uint64_t refresh_frame_flags;
-    uint8_t  frame_size_override_flag;
-    uint8_t  allow_intrabc;
-    uint8_t  primary_ref_frame;
-public:
-    AV1TemporalPointInfoSyntax::ptr temporal_point_info;
-};
-
-class AV1TxModeSyntax
-{
-public:
-    using ptr = std::shared_ptr<AV1TxModeSyntax>;
-public:
-    AV1TxModeSyntax();
-    ~AV1TxModeSyntax() = default;
-public:
-    uint8_t tx_mode_select;
-};
-
-class AV1FrameReferenceModeSyntax
-{
-public:
-    using ptr = std::shared_ptr<AV1FrameReferenceModeSyntax>;
-public:
-    AV1FrameReferenceModeSyntax();
-    ~AV1FrameReferenceModeSyntax() = default;
-public:
-    uint8_t  reference_select;
-};
-
 class AV1FilmGrainParamsSyntax
 {
 public:
@@ -885,6 +858,58 @@ public:
     uint8_t  clip_to_restricted_range;
 };
 
+class AV1UncompressedHeaderSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1UncompressedHeaderSyntax>;
+public:
+    AV1UncompressedHeaderSyntax();
+    ~AV1UncompressedHeaderSyntax() = default;
+public:
+    uint8_t  show_existing_frame;
+    uint8_t  frame_type;
+    uint8_t  show_frame;
+    uint8_t  showable_frame;
+    uint8_t  frame_to_show_map_idx;
+    uint64_t display_frame_id;
+    uint64_t refresh_frame_flags;
+    uint8_t  frame_size_override_flag;
+    uint8_t  allow_intrabc;
+    uint8_t  primary_ref_frame;
+    uint8_t  error_resilient_mode;
+    uint8_t  disable_cdf_update;
+    uint8_t  allow_screen_content_tools;
+    uint8_t  force_integer_mv;
+    uint64_t current_frame_id;
+    uint8_t  buffer_removal_time_present_flag;
+    std::vector<uint64_t> buffer_removal_time;
+public:
+    AV1TemporalPointInfoSyntax::ptr temporal_point_info;
+    AV1FilmGrainParamsSyntax::ptr load_grain_params;
+};
+
+class AV1TxModeSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1TxModeSyntax>;
+public:
+    AV1TxModeSyntax();
+    ~AV1TxModeSyntax() = default;
+public:
+    uint8_t tx_mode_select;
+};
+
+class AV1FrameReferenceModeSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1FrameReferenceModeSyntax>;
+public:
+    AV1FrameReferenceModeSyntax();
+    ~AV1FrameReferenceModeSyntax() = default;
+public:
+    uint8_t  reference_select;
+};
+
 class AV1GeneralTileGroupOBUSyntax
 {
 public:
@@ -894,8 +919,9 @@ public:
     ~AV1GeneralTileGroupOBUSyntax() = default;
 public:
     uint8_t  tile_start_and_end_present_flag;
-    uint32_t tg_start;
-    uint32_t tg_end;
+    uint64_t tg_start;
+    uint64_t tg_end;
+    uint64_t tile_size_minus_1;
 };
 
 class AV1LoopRestorationParamsSyntax
@@ -1000,6 +1026,23 @@ public:
     uint32_t loop_filter_mode_deltas[2] = {0};
 };
 
+class AV1TileInfoSyntax
+{
+public:
+    using ptr = std::shared_ptr<AV1TileInfoSyntax>;
+public:
+    AV1TileInfoSyntax();
+    ~AV1TileInfoSyntax() = default;
+public:
+    uint8_t  uniform_tile_spacing_flag;
+    std::vector<uint8_t> increment_tile_cols_log2;
+    std::vector<uint8_t> increment_tile_rows_log2;
+    std::vector<uint64_t> width_in_sbs_minus_1;
+    std::vector<uint64_t> height_in_sbs_minus_1;
+    uint64_t context_update_tile_id;
+    uint8_t  tile_size_bytes_minus_1;
+};
+
 /**
  * @sa 7.20. Reference frame update process
  */
@@ -1045,11 +1088,11 @@ public:
     uint8_t   LoopRestorationSize[4];
     uint8_t   AllLossless;
     uint8_t   TxMode;
-    uint32_t  NumTiles;
-    uint16_t  TileCols;
-    uint16_t  TileRows;
-    uint16_t  TileColsLog2;
-    uint16_t  TileRowsLog2;
+    uint64_t  NumTiles;
+    uint64_t  TileCols;
+    uint64_t  TileRows;
+    uint64_t  TileColsLog2;
+    uint64_t  TileRowsLog2;
     uint8_t   FeatureEnabled[AV1_SYMBOL(MAX_SEGMENTS)][AV1_SYMBOL(SEG_LVL_MAX)] = {0};
     uint8_t   Segmentation_Feature_Bits[AV1_SYMBOL(SEG_LVL_MAX)] = {0};
     uint8_t   Segmentation_Feature_Max[AV1_SYMBOL(SEG_LVL_MAX)] = {0};
@@ -1057,6 +1100,12 @@ public:
     int64_t   FeatureData[AV1_SYMBOL(MAX_SEGMENTS)][AV1_SYMBOL(SEG_LVL_MAX)] = {0};
     uint8_t   SegIdPreSkip;
     uint8_t   LastActiveSegId;
+    uint8_t   RefValid[AV1_SYMBOL(NUM_REF_FRAMES)] = {0};
+    uint8_t   RefOrderHint[AV1_SYMBOL(NUM_REF_FRAMES)] = {0};
+    uint8_t   OrderHints[AV1_REF(LAST_FRAME) + AV1_SYMBOL(REFS_PER_FRAME)] = {0};
+    uint64_t  TileSizeBytes;
+    uint64_t  MiColStarts[AV1_SYMBOL(MAX_TILE_COLS)] = {0};
+    uint64_t  MiRowStarts[AV1_SYMBOL(MAX_TILE_COLS)] = {0};
 };
 
 } // namespace Codec

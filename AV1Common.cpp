@@ -73,6 +73,11 @@ AV1ObuHeaderSyntax::AV1ObuHeaderSyntax()
     obu_reserved_1bit = 0;
 }
 
+AV1GeneralMetadataOBUSyntax::AV1GeneralMetadataOBUSyntax()
+{
+    metadata_type = 0;
+}
+
 AV1SuperresParamsSyntax::AV1SuperresParamsSyntax()
 {
     use_superres = 0;
@@ -222,6 +227,7 @@ AV1GeneralTileGroupOBUSyntax::AV1GeneralTileGroupOBUSyntax()
     tile_start_and_end_present_flag = 0;
     tg_start = 0;
     tg_end = 0;
+    tile_size_minus_1 = 0;
 }
 
 AV1LoopRestorationParamsSyntax::AV1LoopRestorationParamsSyntax()
@@ -267,6 +273,13 @@ AV1LoopFilterParamsSyntax::AV1LoopFilterParamsSyntax()
     loop_filter_sharpness = 0;
     loop_filter_delta_enabled = 0;
     loop_filter_delta_update = 0;
+}
+
+AV1TileInfoSyntax::AV1TileInfoSyntax()
+{
+    uniform_tile_spacing_flag = 0;
+    context_update_tile_id = 0;
+    tile_size_bytes_minus_1 = 0;
 }
 
 } // namespace Codec

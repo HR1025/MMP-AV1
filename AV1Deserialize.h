@@ -34,7 +34,7 @@ public:
     bool DeserializeFrameReferenceModeSyntax(AV1BinaryReader::ptr br, AV1FrameReferenceModeSyntax::ptr frameReferenceMode); 
     bool DeserializeTxModeSyntax(AV1BinaryReader::ptr br, AV1TxModeSyntax::ptr txMode);
     bool DeserializeGeneralFrameHeaderOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralFrameHeaderOBUSyntax::ptr generalFrameHeaderOBU, AV1SequenceHeaderSyntax::ptr sequenceHeader);
-    bool DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU);
+    bool DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU, size_t sz);
     bool DeserializeCdefParamsSyntax(AV1BinaryReader::ptr br, AV1CdefParamsSyntax::ptr cdefParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
     bool DeserializeInterpolationFilterSyntax(AV1BinaryReader::ptr br, AV1InterpolationFilterSyntax::ptr interpolationFilter);
     bool DeserializeQuantizerIndexDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters, AV1QuantizationParamsSyntax::ptr quantizationParams);
@@ -63,6 +63,10 @@ public:
     bool DeserializeSegmentationParamsSyntax(AV1BinaryReader::ptr br, AV1SegmentationParamsSyntax::ptr segmentationParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
     bool DeserializeAV1LoopFilterDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1LoopFilterDeltaParametersSyntax::ptr loopFilterDeltaParameters, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
     bool DeserializeAV1LoopFilterParamsSyntax(AV1BinaryReader::ptr br, AV1LoopFilterParamsSyntax::ptr loopFilterParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader);
+    bool DeserializeAV1PaddingOBUSyntaxSyntax(AV1BinaryReader::ptr br, AV1PaddingOBUSyntax::ptr paddingOBU, size_t obu_padding_length);
+    bool DeserializeAV1GeneralMetadataOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralMetadataOBUSyntax::ptr generalMetadataOBU);
+    bool DeserializeAV1MetadataITUT_T35Syntax(AV1BinaryReader::ptr br, AV1MetadataITUT_T35Syntax::ptr metadataITUT_T35Syntax);
+    bool DeserializeAV1TileInfoSyntax(AV1BinaryReader::ptr br, AV1TileInfoSyntax::ptr tileInfo, AV1SequenceHeaderSyntax::ptr sequenceHeader);
 public:
     void SetFrameRefsProcess(int8_t ref_frame_idx[AV1_SYMBOL(REFS_PER_FRAME)], uint8_t usedFrame[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t shiftedOrderHints[AV1_SYMBOL(NUM_REF_FRAMES)], int64_t RefOrderHint[AV1_SYMBOL(NUM_REF_FRAMES)],  uint8_t last_frame_idx, uint8_t gold_frame_idx, AV1SequenceHeaderSyntax::ptr sequenceHeader);
 public:
@@ -73,6 +77,7 @@ public:
     void load_grain_params(size_t idx);
     void compute_image_size();
     void GetRefFrameList(int64_t Ref_Frame_List[AV1_SYMBOL(REFS_PER_FRAME) - 2]);
+    uint64_t tile_log2(uint64_t blkSize, uint64_t target);
 private:
     AV1ReferenceFrameContext _curFrameContext;
     AV1ReferenceFrameContext _referenceFrameContext[AV1_SYMBOL(NUM_REF_FRAMES)];
