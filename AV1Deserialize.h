@@ -34,7 +34,7 @@ public:
     bool DeserializeFrameReferenceModeSyntax(AV1BinaryReader::ptr br, AV1FrameReferenceModeSyntax::ptr frameReferenceMode); 
     bool DeserializeTxModeSyntax(AV1BinaryReader::ptr br, AV1TxModeSyntax::ptr txMode);
     bool DeserializeGeneralFrameHeaderOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralFrameHeaderOBUSyntax::ptr generalFrameHeaderOBU, AV1SequenceHeaderSyntax::ptr sequenceHeader);
-    bool DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU, size_t sz);
+    bool DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU,  AV1QuantizationParamsSyntax::ptr quantizationParams, size_t sz);
     bool DeserializeCdefParamsSyntax(AV1BinaryReader::ptr br, AV1CdefParamsSyntax::ptr cdefParams, AV1UncompressedHeaderSyntax::ptr uncompressedHeader, AV1SequenceHeaderSyntax::ptr sequenceHeader);
     bool DeserializeInterpolationFilterSyntax(AV1BinaryReader::ptr br, AV1InterpolationFilterSyntax::ptr interpolationFilter);
     bool DeserializeQuantizerIndexDeltaParametersSyntax(AV1BinaryReader::ptr br, AV1QuantizerIndexDeltaParametersSyntax::ptr quantizerIndexDeltaParameters, AV1QuantizationParamsSyntax::ptr quantizationParams);

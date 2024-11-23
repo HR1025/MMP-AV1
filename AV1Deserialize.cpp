@@ -429,7 +429,7 @@ bool AV1Deserialize::DeserializeGeneralFrameHeaderOBUSyntax(AV1BinaryReader::ptr
     }
 }
 
-bool AV1Deserialize::DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU, size_t sz)
+bool AV1Deserialize::DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr br, AV1GeneralTileGroupOBUSyntax::ptr generalTileGroupOBU,  AV1QuantizationParamsSyntax::ptr quantizationParams, size_t sz)
 {
     // See also : 5.11.1. General tile group OBU syntax
     try
@@ -469,10 +469,16 @@ bool AV1Deserialize::DeserializeGeneralTileGroupOBUSyntax(AV1BinaryReader::ptr b
             }
             else
             {
-                // TODO
+                generalTileGroupOBU->tile_size_minus_1 = br->le(_curFrameContext.TileSizeBytes);
                 tileSize = (size_t)generalTileGroupOBU->tile_size_minus_1 + 1;
-                sz -= tileSize + (size_t)_curFrameContext.TileSizeBytes;
+                sz -= tileSize + (uint64_t)_curFrameContext.TileSizeBytes;
             }
+            _curFrameContext.MiRowStart = _curFrameContext.MiRowStarts[tileRow];
+            _curFrameContext.MiRowEnd = _curFrameContext.MiRowStarts[tileRow + 1];
+            _curFrameContext.MiColStrart = _curFrameContext.MiColStarts[tileCol];
+            _curFrameContext.MiColEnd = _curFrameContext.MiColStarts[tileCol + 1];
+            _curFrameContext.CurrentQIndex = quantizationParams->base_q_idx;
+            // TODO
         }
         return true;
     }
@@ -1213,7 +1219,11 @@ bool AV1Deserialize::DeserializeUncompressedHeaderSyntax(AV1BinaryReader::ptr br
                 if (sequenceHeader->film_grain_params_present)
                 {
                     uncompressedHeader->load_grain_params = std::make_shared<AV1FilmGrainParamsSyntax>();
-                    // TODO
+                    if (!DeserializeFilmGrainParamsSyntax(br, uncompressedHeader->load_grain_params, sequenceHeader, uncompressedHeader))
+                    {
+                        AV1_LOG_ERROR << "DeserializeFilmGrainParamsSyntax fail";
+                        return false;
+                    }
                 }
                 return true;
             }

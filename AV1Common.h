@@ -1106,6 +1106,11 @@ public:
     uint64_t  TileSizeBytes;
     uint64_t  MiColStarts[AV1_SYMBOL(MAX_TILE_COLS)] = {0};
     uint64_t  MiRowStarts[AV1_SYMBOL(MAX_TILE_COLS)] = {0};
+    uint64_t  MiRowStart;
+    uint64_t  MiRowEnd;
+    uint64_t  MiColStrart;
+    uint64_t  MiColEnd;
+    uint64_t  CurrentQIndex;
 };
 
 } // namespace Codec
